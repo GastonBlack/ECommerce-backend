@@ -44,6 +44,10 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddScoped<ECommerceAPI.Services.Jwt.IJwtService, ECommerceAPI.Services.Jwt.JwtService>();
 // =================================================
 
+// Para poder utilizar AuthService en el controller.
+builder.Services.AddScoped<ECommerceAPI.Services.Auth.IAuthService, ECommerceAPI.Services.Auth.AuthService>();
+
+
 // Controllers.
 builder.Services.AddControllers();
 
