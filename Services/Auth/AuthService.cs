@@ -3,7 +3,7 @@ using ECommerceAPI.Data;
 using ECommerceAPI.DTOs.Auth;
 using ECommerceAPI.Models;
 using ECommerceAPI.Services.Jwt;
-using ECommerceAPI.Services.Auth;
+using ECommerceAPI.Services.Users;
 using Microsoft.EntityFrameworkCore;
 
 namespace ECommerceAPI.Services.Auth;
@@ -12,12 +12,14 @@ public class AuthService : IAuthService
 {
     // =================================================================
     private readonly AppDbContext _db;
+    private readonly IUserService _userService;
     private readonly IJwtService _jwtService;
 
-    public AuthService(AppDbContext db, IJwtService jwtService)
+    public AuthService(AppDbContext db, IJwtService jwtService, IUserService userService)
     {
         _db = db;
         _jwtService = jwtService;
+        _userService = userService;
     }
     // =================================================================
 
@@ -26,31 +28,25 @@ public class AuthService : IAuthService
     // ================
     public async Task<AuthResponseDto> RegisterAsync(UserRegisterDto dto)
     {
-        // Verificar email.
-        var existingUser = await _db.Users.FirstOrDefaultAsync(u => u.Email == dto.Email);
-        if (existingUser != null)
+        var existing = await _userService.GetByEmailAsync(dto.Email);
+        if (existing != null)
             throw new Exception("El email ya está registrado.");
 
-        // Crear el usuario
-        var user = new User
+        var newUser = new User
         {
             FullName = dto.FullName,
             Email = dto.Email,
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password) // Se guarda el hash.
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
         };
 
-        // Guarda al usuario en la db.
-        _db.Users.Add(user);
-        await _db.SaveChangesAsync();
+        await _userService.CreateUserAsync(newUser);
 
-        // Genera el token JWT.
-        var token = _jwtService.GenerateToken(user);
+        var token = _jwtService.GenerateToken(newUser);
 
-        // Devuelve la respuesta
         return new AuthResponseDto
         {
-            UserId = user.Id,
-            Email = user.Email,
+            UserId = newUser.Id,
+            Email = newUser.Email,
             Token = token,
         };
     }
@@ -61,20 +57,20 @@ public class AuthService : IAuthService
     // ================
     public async Task<AuthResponseDto> LoginAsync(UserLoginDto dto)
     {
-        // Busca al usuario por email.
-        var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == dto.Email);
+        // Se encuentra al usuario
+        var user = await _userService.GetByEmailAsync(dto.Email);
         if (user == null)
-            throw new Exception("Credenciales invalidas.");
+            throw new Exception("Email/Contraseña incorrecta.");
 
-        // Comparar contraseña con el hash.
-        bool isValidPassword = BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash);
-        if (!isValidPassword)
-            throw new Exception("Credenciales invalidas.");
+        // Se verifica si las contraseñas coinciden.
+        bool isValid = BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash);
+        if (!isValid)
+            throw new Exception("Email/Contraseña incorrecta.");
 
-        // Generar token
+        // Se genera el token.
         var token = _jwtService.GenerateToken(user);
 
-        // Devolver DTO
+        // Devuelve la respuesta Auth.
         return new AuthResponseDto
         {
             UserId = user.Id,
