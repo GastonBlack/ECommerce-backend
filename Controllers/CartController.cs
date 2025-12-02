@@ -1,38 +1,48 @@
 using ECommerceAPI.DTOs.Cart;
 using ECommerceAPI.Services.Cart;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ECommerceAPI.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
+
 public class CartController : ControllerBase
 {
+    // ===========================================
     private readonly ICartService _service;
-
     public CartController(ICartService service)
     {
         _service = service;
     }
+    // ===========================================
 
     // Obtener carrito del usuario
-    [HttpGet("{userId}")]
-    public async Task<IActionResult> GetCart(int userId)
+    [HttpGet]
+    public async Task<IActionResult> GetCart()
     {
+        var userId = int.Parse(User.FindFirst("id")!.Value);
+        
         return Ok(await _service.GetUserCartAsync(userId));
     }
 
     // Agregar al carrito
-    [HttpPost("{userId}/add")]
-    public async Task<IActionResult> Add(int userId, CartAddDto dto)
+    [HttpPost("add")]
+    public async Task<IActionResult> Add(CartAddDto dto)
     {
+        var userId = int.Parse(User.FindFirst("id")!.Value);
+
         return Ok(await _service.AddToCartAsync(userId, dto));
     }
 
     // Actualizar cantidad
-    [HttpPut("{userId}/update/{cartItemId}")]
-    public async Task<IActionResult> Update(int userId, int cartItemId, CartUpdateDto dto)
+    [HttpPut("update/{cartItemId}")]
+    public async Task<IActionResult> Update(int cartItemId, CartUpdateDto dto)
     {
+        var userId = int.Parse(User.FindFirst("id")!.Value);
+
         if (dto.Quantity <= 0)
             return BadRequest(new { error = "La cantidad debe ser mayor a 0" });
 
@@ -43,9 +53,11 @@ public class CartController : ControllerBase
     }
 
     // Eliminar item
-    [HttpDelete("{userId}/remove/{cartItemId}")]
-    public async Task<IActionResult> Remove(int userId, int cartItemId)
+    [HttpDelete("remove/{cartItemId}")]
+    public async Task<IActionResult> Remove(int cartItemId)
     {
+        var userId = int.Parse(User.FindFirst("id")!.Value);
+
         var removed = await _service.RemoveItemAsync(cartItemId, userId);
         if (!removed) return NotFound();
 
@@ -53,9 +65,11 @@ public class CartController : ControllerBase
     }
 
     // Vaciar carrito
-    [HttpDelete("{userId}/clear")]
-    public async Task<IActionResult> Clear(int userId)
+    [HttpDelete("clear")]
+    public async Task<IActionResult> Clear()
     {
+        var userId = int.Parse(User.FindFirst("id")!.Value);
+
         var cleared = await _service.ClearCartAsync(userId);
         if (!cleared) return NotFound();
 

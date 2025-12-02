@@ -1,11 +1,14 @@
 using ECommerceAPI.DTOs.Product;
 using ECommerceAPI.Services.Products;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ECommerceAPI.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+// Por ahora cualquiera puede crear/borrar/actualizar productos, falta implementar roles y despues con Authorize(Roles = "Admin).
+
 public class ProductController : ControllerBase
 {
     // ==================================================

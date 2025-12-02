@@ -7,6 +7,7 @@ namespace ECommerceAPI.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+
 public class CategoryController : ControllerBase
 {
     // ==================================================

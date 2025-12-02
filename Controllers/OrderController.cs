@@ -1,10 +1,12 @@
 using ECommerceAPI.Services.Orders;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ECommerceAPI.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
 
 public class OrderController : ControllerBase
 {
@@ -16,9 +18,11 @@ public class OrderController : ControllerBase
     }
     // ===========================================
 
-    [HttpPost("{userId}/checkout")]
-    public async Task<IActionResult> Checkout(int userId)
+    [HttpPost("checkout")]
+    public async Task<IActionResult> Checkout()
     {
+        var userId = int.Parse(User.FindFirst("id")!.Value);
+
         try
         {
             return Ok(await _service.CreateOrderAsync(userId));
@@ -30,16 +34,20 @@ public class OrderController : ControllerBase
     }
 
 
-    [HttpGet("{userId}")]
-    public async Task<IActionResult> GetUserOrders(int userId)
+    [HttpGet("")]
+    public async Task<IActionResult> GetUserOrders()
     {
+        var userId = int.Parse(User.FindFirst("id")!.Value);
+
         return Ok(await _service.GetUserOrdersAsync(userId));
     }
 
 
-    [HttpGet("{userId}/{orderId}")]
-    public async Task<IActionResult> GetById(int userId, int orderId)
+    [HttpGet("{orderId}")]
+    public async Task<IActionResult> GetById(int orderId)
     {
+        var userId = int.Parse(User.FindFirst("id")!.Value);
+
         var order = await _service.GetByIdAsync(orderId, userId);
         if (order == null) return NotFound();
 
