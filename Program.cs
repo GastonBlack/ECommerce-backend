@@ -25,6 +25,21 @@ var jwtSettings = builder.Configuration.GetSection("Jwt").Get<JwtSettings>();
 var keyBytes = Encoding.UTF8.GetBytes(jwtSettings.Key);
 
 // =====================================
+// CORS
+// =====================================
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend",
+        policy =>
+        {
+            policy.AllowAnyHeader()
+                  .AllowAnyMethod()
+                  .AllowCredentials()
+                  .WithOrigins("http://localhost:3000");
+        });
+});
+
+// =====================================
 // AUTHENTICATION
 // =====================================
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -77,6 +92,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseCors("AllowFrontend");
 app.UseAuthentication();
 app.UseAuthorization();
 
