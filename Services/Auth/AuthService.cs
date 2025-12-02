@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using BCrypt.Net;
 using ECommerceAPI.Data;
 using ECommerceAPI.DTOs.Auth;
@@ -32,6 +33,16 @@ public class AuthService : IAuthService
         if (existing != null)
             throw new Exception("El email ya está registrado.");
 
+        // VALIDACIONES EXTRAS
+        if (string.IsNullOrWhiteSpace(dto.FullName) || dto.FullName.Length < 3)
+            throw new Exception("El nombre debe contener al menos 3 caracteres.");
+
+        if (!Regex.IsMatch(dto.Email, @"^[^@\s]+@[^@\s]+\.[^@\s]+$"))
+            throw new Exception("El email no es válido.");
+
+        if (dto.Password.Length < 6)
+            throw new Exception("La contraseña debe tener al menos 6 caracteres.");
+
         var newUser = new User
         {
             FullName = dto.FullName,
@@ -50,7 +61,7 @@ public class AuthService : IAuthService
             Token = token,
         };
     }
-    
+
 
     // ================
     //  LOGIN
