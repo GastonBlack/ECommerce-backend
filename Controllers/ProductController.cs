@@ -1,4 +1,6 @@
+using CloudinaryDotNet;
 using ECommerceAPI.DTOs.Product;
+using ECommerceAPI.Services.ImageUpload;
 using ECommerceAPI.Services.Products;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -54,6 +56,20 @@ public class ProductController : ControllerBase
     {
         bool deleted = await _service.DeleteAsync(id);
         if (!deleted) return NotFound();
-        return Ok(new { message = "Producto eliminado correctamente." });
+        return Ok(new { message = "Producto eliminado." });
+    }
+
+    [HttpPost("upload-image")]
+    public async Task<IActionResult> UploadImage([FromForm] IFormFile file, [FromServices] ICloudinaryService service)
+    {
+        try
+        {
+            var url = await service.UploadImageAsync(file);
+            return Ok(new { imageUrl = url });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
     }
 }

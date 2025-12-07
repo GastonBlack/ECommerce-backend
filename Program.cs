@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using ECommerceAPI.Services.ImageUpload;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -62,6 +63,15 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 // AUTHORIZATION
 // =====================================
 builder.Services.AddAuthorization();
+
+// =====================================
+// CLOUDINARY
+// =====================================
+builder.Services.Configure<CloudinarySettings>(
+    builder.Configuration.GetSection("Cloudinary")
+);
+
+builder.Services.AddSingleton<ICloudinaryService, CloudinaryService>();
 
 // =====================================
 // SERVICES (DI)
