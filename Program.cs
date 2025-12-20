@@ -108,4 +108,13 @@ app.UseAuthorization();
 
 app.MapControllers();
 
+// =====================================
+// AÑADIR PRODUCTOS POR DEFALT
+// =====================================
+using (var scope = app.Services.CreateScope())
+{
+    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    await DbDefaultProducts.SeedAsync(context);
+}
+
 app.Run();
