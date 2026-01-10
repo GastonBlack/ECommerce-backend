@@ -1,3 +1,4 @@
+using ECommerceAPI.Extensions;
 using ECommerceAPI.Services.Orders;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -21,7 +22,7 @@ public class OrderController : ControllerBase
     [HttpPost("checkout")]
     public async Task<IActionResult> Checkout()
     {
-        var userId = int.Parse(User.FindFirst("id")!.Value);
+        var userId = User.GetUserId();
 
         try
         {
@@ -37,7 +38,7 @@ public class OrderController : ControllerBase
     [HttpGet("")]
     public async Task<IActionResult> GetUserOrders()
     {
-        var userId = int.Parse(User.FindFirst("id")!.Value);
+        var userId = User.GetUserId();
 
         return Ok(await _service.GetUserOrdersAsync(userId));
     }
@@ -46,7 +47,7 @@ public class OrderController : ControllerBase
     [HttpGet("{orderId}")]
     public async Task<IActionResult> GetById(int orderId)
     {
-        var userId = int.Parse(User.FindFirst("id")!.Value);
+        var userId = User.GetUserId();
 
         var order = await _service.GetByIdAsync(orderId, userId);
         if (order == null) return NotFound();

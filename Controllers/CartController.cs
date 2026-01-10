@@ -1,4 +1,5 @@
 using ECommerceAPI.DTOs.Cart;
+using ECommerceAPI.Extensions;
 using ECommerceAPI.Services.Cart;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -23,17 +24,19 @@ public class CartController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetCart()
     {
-        var userId = int.Parse(User.FindFirst("id")!.Value);
-        
+        var userId = User.GetUserId();
+
         return Ok(await _service.GetUserCartAsync(userId));
     }
 
     // Agregar al carrito
     [HttpPost("add")]
-    public async Task<IActionResult> Add(CartAddDto dto)
+    public async Task<IActionResult> Add([FromBody] CartAddDto dto)
     {
-        var userId = int.Parse(User.FindFirst("id")!.Value);
+        if (dto == null)
+            return BadRequest(new { error = "Body inválido (dto es null)." });
 
+        var userId = User.GetUserId();
         return Ok(await _service.AddToCartAsync(userId, dto));
     }
 
@@ -41,7 +44,7 @@ public class CartController : ControllerBase
     [HttpPut("update/{cartItemId}")]
     public async Task<IActionResult> Update(int cartItemId, CartUpdateDto dto)
     {
-        var userId = int.Parse(User.FindFirst("id")!.Value);
+        var userId = User.GetUserId();
 
         if (dto.Quantity <= 0)
             return BadRequest(new { error = "La cantidad debe ser mayor a 0" });
@@ -56,7 +59,7 @@ public class CartController : ControllerBase
     [HttpDelete("remove/{cartItemId}")]
     public async Task<IActionResult> Remove(int cartItemId)
     {
-        var userId = int.Parse(User.FindFirst("id")!.Value);
+        var userId = User.GetUserId();
 
         var removed = await _service.RemoveItemAsync(cartItemId, userId);
         if (!removed) return NotFound();
@@ -68,7 +71,7 @@ public class CartController : ControllerBase
     [HttpDelete("clear")]
     public async Task<IActionResult> Clear()
     {
-        var userId = int.Parse(User.FindFirst("id")!.Value);
+        var userId = User.GetUserId();
 
         var cleared = await _service.ClearCartAsync(userId);
         if (!cleared) return NotFound();
