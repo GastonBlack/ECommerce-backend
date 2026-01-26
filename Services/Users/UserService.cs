@@ -1,4 +1,5 @@
 using ECommerceAPI.Data;
+using ECommerceAPI.DTOs.User;
 using ECommerceAPI.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -29,5 +30,55 @@ public class UserService : IUserService
         _db.Users.Add(user);
         await _db.SaveChangesAsync();
         return user;
+    }
+
+    public async Task<UserMeResponseDto?> GetMeAsync(int userId)
+    {
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId);
+        if (user == null) return null;
+
+        return new UserMeResponseDto
+        {
+            Id = user.Id,
+            FullName = user.FullName,
+            Email = user.Email,
+            Address = user.Address,
+            Phone = user.Phone,
+        };
+    }
+
+    public async Task<UserMeResponseDto?> UpdateMeAsync(int userId, UserUpdateMeDto dto)
+    {
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId);
+        if (user == null) return null;
+
+        user.FullName = dto.FullName.Trim();
+        user.Address = string.IsNullOrWhiteSpace(dto.Address) ? null : dto.Address.Trim();
+        user.Phone = string.IsNullOrWhiteSpace(dto.Phone) ? null : dto.Phone.Trim();
+
+        await _db.SaveChangesAsync();
+
+        return new UserMeResponseDto
+        {
+            Id = user.Id,
+            FullName = user.FullName,
+            Email = user.Email,
+            Address = user.Address,
+            Phone = user.Phone,
+        };
+    }
+
+    public async Task<(bool ok, string? error)> ChangePasswordAsync(int userId, UserChangePasswordDto dto)
+    {
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId);
+        if (user == null) return (false, "Usuario no encontrado.");
+
+        if (!BCrypt.Net.BCrypt.Verify(dto.CurrentPassword, user.PasswordHash))
+            return (false, "La contraseña actual es incorrecta");
+
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
+        await _db.SaveChangesAsync();
+
+        return (true, null);
     }
 }
