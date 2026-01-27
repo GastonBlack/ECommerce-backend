@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using ECommerceAPI.Services.ImageUpload;
+using System.Security.Claims;
+using System.IdentityModel.Tokens.Jwt;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -55,7 +57,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
             ValidIssuer = jwtSettings.Issuer,
             ValidAudience = jwtSettings.Audience,
-            IssuerSigningKey = new SymmetricSecurityKey(keyBytes)
+            IssuerSigningKey = new SymmetricSecurityKey(keyBytes),
+            RoleClaimType = ClaimTypes.Role,
+            NameClaimType = JwtRegisteredClaimNames.Name
         };
     });
 
