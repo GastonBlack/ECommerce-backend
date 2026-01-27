@@ -17,7 +17,7 @@ public class ProductCreateDto
     public int Stock { get; set; }
 
     [Url]
-    public string ImageUrl { get; set; }
+    public string? ImageUrl { get; set; }
 
     [Required, Range(1, int.MaxValue)]
     public int CategoryId { get; set; }
