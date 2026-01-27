@@ -8,6 +8,8 @@ public class User
     public string Email { get; set; } = null!;
     public string PasswordHash { get; set; } = null!;
 
+    public string Rol { get; set; } = "User";
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     
     // Opcionales.

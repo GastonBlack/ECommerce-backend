@@ -10,6 +10,25 @@ public static class DbDefaultProducts // Static porque solo se necesita instanci
     {
         await context.Database.MigrateAsync(); // Para asegurar que la DB este creada y migrada para evitar errores.
 
+        // Default Admin User.
+        if (!await context.Users.AnyAsync(u => u.Rol == "Admin"))
+        {
+            var adminEmail = "admin@ecommerce.com";
+            var adminPassword = "Admin123"; // TODO: Ponerlo en variables de entorno.
+
+            var admin = new User
+            {
+                FullName = "Admin",
+                Email = adminEmail,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(adminPassword),
+                Rol = "Admin"
+            };
+
+            context.Users.Add(admin);
+            await context.SaveChangesAsync();
+        }
+
+        // Categorias por defecto.
         if (!await context.Categories.AnyAsync())
         {
             var categories = new List<Category>

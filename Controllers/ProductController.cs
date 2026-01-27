@@ -22,12 +22,14 @@ public class ProductController : ControllerBase
     // ==================================================
 
     [HttpGet]
+    [AllowAnonymous]
     public async Task<IActionResult> GetAll()
     {
         return Ok(await _service.GetAllAsync());
     }
 
     [HttpGet("{id}")]
+    [AllowAnonymous]
     public async Task<IActionResult> GetById(int id)
     {
         var product = await _service.GetByIdAsync(id);
@@ -36,6 +38,7 @@ public class ProductController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Create(ProductCreateDto dto)
     {
         var product = await _service.CreateAsync(dto);
@@ -43,6 +46,7 @@ public class ProductController : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Update(int id, ProductUpdateDto dto)
     {
         var product = await _service.UpdateAsync(id, dto);
@@ -52,6 +56,7 @@ public class ProductController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Delete(int id)
     {
         bool deleted = await _service.DeleteAsync(id);
@@ -60,6 +65,7 @@ public class ProductController : ControllerBase
     }
 
     [HttpPost("upload-image")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> UploadImage([FromForm] IFormFile file, [FromServices] ICloudinaryService service)
     {
         try

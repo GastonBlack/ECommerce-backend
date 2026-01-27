@@ -33,6 +33,8 @@ public class JwtService : IJwtService
             // "sub" = subject (identificador principal del token)
             new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new Claim(JwtRegisteredClaimNames.Email, user.Email),
+            new Claim(JwtRegisteredClaimNames.Name, user.FullName),
+            new Claim(ClaimTypes.Role, user.Rol),
             // Jti = identificador único del token.
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
