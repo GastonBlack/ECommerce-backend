@@ -16,7 +16,7 @@ public class ProductUpdateDto
     [Required, Range(0, 99999)]
     public int Stock { get; set; }
 
-    [Required, Url]
+    [Url]
     public string ImageUrl { get; set; }
 
     [Required, Range(1, int.MaxValue)]
