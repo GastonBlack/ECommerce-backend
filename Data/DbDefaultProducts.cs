@@ -8,8 +8,6 @@ public static class DbDefaultProducts // Static porque solo se necesita instanci
 {
     public static async Task SeedAsync(AppDbContext context)
     {
-        await context.Database.MigrateAsync(); // Para asegurar que la DB este creada y migrada para evitar errores.
-
         // Default Admin User.
         if (!await context.Users.AnyAsync(u => u.Rol == "Admin"))
         {
@@ -29,25 +27,22 @@ public static class DbDefaultProducts // Static porque solo se necesita instanci
         }
 
         // Categorias por defecto.
-        if (!await context.Categories.AnyAsync())
+        var defaultNames = new[] { "Auriculares", "Consolas", "Celulares", "Graficas" };
+        foreach (var name in defaultNames)
         {
-            var categories = new List<Category>
-            {
-                new Category { Name = "Auriculares" },
-                new Category { Name = "Consolas" },
-                new Category { Name = "Celulares" },
-                new Category { Name = "Graficas" },
-            };
-
-            context.Categories.AddRange(categories);
-            await context.SaveChangesAsync();
+            var exists = await context.Categories.AnyAsync(c => c.Name == name);
+            if (!exists)
+                context.Categories.Add(new Category { Name = name });
         }
+        await context.SaveChangesAsync();
 
-        // Obtener IDs de las categorias que se agregaron arriba.
-        var auricularesId = await context.Categories.Where(c => c.Name == "Auriculares").Select(c => c.Id).FirstAsync();
-        var consolasId = await context.Categories.Where(c => c.Name == "Consolas").Select(c => c.Id).FirstAsync();
-        var celularesId = await context.Categories.Where(c => c.Name == "Celulares").Select(c => c.Id).FirstAsync();
-        var graficasId = await context.Categories.Where(c => c.Name == "Graficas").Select(c => c.Id).FirstAsync();
+        var auricularesId = await context.Categories.Where(c => c.Name == "Auriculares").Select(c => c.Id).FirstOrDefaultAsync();
+        var consolasId = await context.Categories.Where(c => c.Name == "Consolas").Select(c => c.Id).FirstOrDefaultAsync();
+        var celularesId = await context.Categories.Where(c => c.Name == "Celulares").Select(c => c.Id).FirstOrDefaultAsync();
+        var graficasId = await context.Categories.Where(c => c.Name == "Graficas").Select(c => c.Id).FirstOrDefaultAsync();
+
+        if (auricularesId == 0 || consolasId == 0 || consolasId == 0 || graficasId == 0)
+            throw new Exception("No se pudieron crear/obtener las categorías por defecto..");
 
         // Productos por default.
         if (!await context.Products.AnyAsync())

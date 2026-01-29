@@ -7,7 +7,7 @@ public class ProductCreateDto
     [Required, MinLength(2), MaxLength(80)]
     public string Name { get; set; }
 
-    [Required, MinLength(2), MaxLength(400)]
+    [Required, MinLength(2), MaxLength(5000)]
     public string Description { get; set; }
 
     [Required, Range(0.1, 100000)]

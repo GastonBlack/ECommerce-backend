@@ -118,6 +118,11 @@ app.MapControllers();
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+    // Limpia la base de datos.
+    await context.Database.EnsureDeletedAsync();
+    await context.Database.MigrateAsync();
+
     await DbDefaultProducts.SeedAsync(context);
 }
 
