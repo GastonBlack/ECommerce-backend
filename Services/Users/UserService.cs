@@ -14,16 +14,17 @@ public class UserService : IUserService
         _db = db;
     }
     // ========================================
-
     public async Task<User?> GetByIdAsync(int id)
     {
         return await _db.Users.FindAsync(id);
     }
 
+
     public async Task<User?> GetByEmailAsync(string email)
     {
         return await _db.Users.FirstOrDefaultAsync(u => u.Email == email);
     }
+
 
     public async Task<User> CreateUserAsync(User user)
     {
@@ -31,6 +32,42 @@ public class UserService : IUserService
         await _db.SaveChangesAsync();
         return user;
     }
+
+
+    public async Task<bool> DisableAsync(int id)
+    {
+        var user = await _db.Users.FindAsync(id);
+        if (user == null) return false;
+
+        // Para que no se pueda deshabilitar a los Admins.
+        if (user.Rol == "Admin") return false;
+
+        if (!user.IsDisabled)
+        {
+            user.IsDisabled = true;
+            user.DisabledAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
+        }
+
+        return true;
+    }
+
+
+    public async Task<bool> EnableAsync(int id)
+    {
+        var user = await _db.Users.FindAsync(id);
+        if (user == null) return false;
+
+        if (user.IsDisabled)
+        {
+            user.IsDisabled = false;
+            user.DisabledAt = null;
+            await _db.SaveChangesAsync();
+        }
+
+        return true;
+    }
+
 
     public async Task<UserMeResponseDto?> GetMeAsync(int userId)
     {
@@ -46,6 +83,7 @@ public class UserService : IUserService
             Phone = user.Phone,
         };
     }
+
 
     public async Task<UserMeResponseDto?> UpdateMeAsync(int userId, UserUpdateMeDto dto)
     {
@@ -68,6 +106,7 @@ public class UserService : IUserService
         };
     }
 
+
     public async Task<(bool ok, string? error)> ChangePasswordAsync(int userId, UserChangePasswordDto dto)
     {
         var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId);
@@ -80,5 +119,40 @@ public class UserService : IUserService
         await _db.SaveChangesAsync();
 
         return (true, null);
+    }
+
+
+    public async Task<List<UserAdminListDto>> GetAllForAdminAsync()
+    {
+        return await _db.Users
+            .OrderByDescending(u => u.CreatedAt)
+            .Select(u => new UserAdminListDto
+            {
+                Id = u.Id,
+                FullName = u.FullName,
+                Email = u.Email,
+                Rol = u.Rol,
+                IsDisabled = u.IsDisabled,
+                CreatedAt = u.CreatedAt,
+                DisabledAt = u.DisabledAt
+            }).ToListAsync();
+    }
+
+
+
+    public async Task<UserAdminListDto?> GetByIdForAdminAsync(int id)
+    {
+        return await _db.Users
+            .Where(u => u.Id == id)
+            .Select(u => new UserAdminListDto
+            {
+                Id = u.Id,
+                FullName = u.FullName,
+                Email = u.Email,
+                Rol = u.Rol,
+                IsDisabled = u.IsDisabled,
+                CreatedAt = u.CreatedAt,
+                DisabledAt = u.DisabledAt
+            }).FirstOrDefaultAsync();
     }
 }

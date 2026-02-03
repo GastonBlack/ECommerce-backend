@@ -88,6 +88,7 @@ builder.Services.AddScoped<ECommerceAPI.Services.Categories.ICategoryService, EC
 builder.Services.AddScoped<ECommerceAPI.Services.Cart.ICartService, ECommerceAPI.Services.Cart.CartService>();
 builder.Services.AddScoped<ECommerceAPI.Services.Orders.IOrderService, ECommerceAPI.Services.Orders.OrderService>();
 
+
 // =====================================
 // CONTROLLERS + SWAGGER
 // =====================================
