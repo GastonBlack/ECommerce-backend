@@ -16,6 +16,10 @@ public class User
     public string? Address { get; set; }
     public string? Phone { get; set; }
 
+    // Soft Delete
+    public bool IsDisabled { get; set; } = false;
+    public DateTime? DisabledAt { get; set; }
+
     // Relaciones.
     public List<CartItem> CartItems { get; set; }   // Carrito.
     public List<Order> Orders { get; set; }         // Historial de compras.
