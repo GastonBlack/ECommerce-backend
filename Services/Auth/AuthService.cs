@@ -5,6 +5,7 @@ using ECommerceAPI.DTOs.Auth;
 using ECommerceAPI.Models;
 using ECommerceAPI.Services.Jwt;
 using ECommerceAPI.Services.Users;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 
 namespace ECommerceAPI.Services.Auth;
@@ -73,6 +74,9 @@ public class AuthService : IAuthService
         var user = await _userService.GetByEmailAsync(dto.Email);
         if (user == null)
             throw new Exception("Email/Contraseña incorrecta.");
+
+        if (user.IsDisabled)
+            throw new Exception("Usuario deshabilitado.");
 
         // Se verifica si las contraseñas coinciden.
         bool isValid = BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash);
