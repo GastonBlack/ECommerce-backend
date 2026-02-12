@@ -22,10 +22,11 @@ public class ProductController : ControllerBase
 
     [HttpGet]
     [AllowAnonymous]
-    public async Task<IActionResult> GetAll()
+    public async Task<IActionResult> GetAll([FromQuery] string? sort = null)
     {
-        return Ok(await _service.GetAllAsync());
+        return Ok(await _service.GetAllAsync(sort));
     }
+
 
     [HttpGet("{id}")]
     [AllowAnonymous]
@@ -76,5 +77,23 @@ public class ProductController : ControllerBase
         {
             return BadRequest(new { error = ex.Message });
         }
+    }
+
+    [HttpGet("admin")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> GetAllAdmin([FromQuery] string? sort = null)
+    {
+        return Ok(await _service.GetAllAdminAsync(sort));
+    }
+
+
+    [HttpGet("admin/{id}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> GetByIdAdmin(int id)
+    {
+        var product = await _service.GetByIdAdminAsync(id);
+        if (product == null) return NotFound();
+
+        return Ok(product);
     }
 }

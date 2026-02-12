@@ -18,9 +18,36 @@ public class ProductService : IProductService
     // ====================================
 
     // GET ALL
-    public async Task<List<ProductResponseDto>> GetAllAsync()
+    public async Task<List<ProductResponseDto>> GetAllAsync(string? sort = null)
     {
-        var products = await _db.Products.ToListAsync();
+        // Primero se filtra.
+        IQueryable<Product> query = _db.Products;
+
+        switch (sort)
+        {
+            case "popular":
+                query = query.OrderByDescending(p => p.TotalSold);
+                break;
+
+            case "price-asc":
+                query = query.OrderBy(p => p.Price);
+                break;
+
+            case "price-desc":
+                query = query.OrderByDescending(p => p.Price);
+                break;
+
+            case "name-asc":
+                query = query.OrderBy(p => p.Name);
+                break;
+
+            case "name-desc":
+                query = query.OrderByDescending(p => p.Name);
+                break;
+        }
+
+        // Retorna los productos ya ordenados segun filtro.
+        var products = await query.ToListAsync();
         return [.. products.Select(p => new ProductResponseDto
         {
             Id = p.Id,
@@ -117,4 +144,66 @@ public class ProductService : IProductService
 
         return true;
     }
+
+
+    // GET ALL para el admin.
+    public async Task<List<ProductAdminResponseDto>> GetAllAdminAsync(string? sort = null)
+    {
+        IQueryable<Product> query = _db.Products;
+
+        switch (sort)
+        {
+            case "popular":
+                query = query.OrderByDescending(p => p.TotalSold);
+                break;
+
+            case "price-asc":
+                query = query.OrderBy(p => p.Price);
+                break;
+
+            case "price-desc":
+                query = query.OrderByDescending(p => p.Price);
+                break;
+
+            case "name-asc":
+                query = query.OrderBy(p => p.Name);
+                break;
+
+            case "name-desc":
+                query = query.OrderByDescending(p => p.Name);
+                break;
+        }
+
+        var products = await query.ToListAsync();
+        return [.. products.Select(p => new ProductAdminResponseDto{
+            Id = p.Id,
+            Name = p.Name,
+            Description = p.Description,
+            Price = p.Price,
+            Stock = p.Stock,
+            TotalSold = p.TotalSold,
+            ImageUrl = p.ImageUrl,
+            CategoryId = p.CategoryId
+        })];
+    }
+
+
+    public async Task<ProductAdminResponseDto?> GetByIdAdminAsync(int id)
+    {
+        var product = await _db.Products.FindAsync(id);
+        if (product == null) return null;
+
+        return new ProductAdminResponseDto
+        {
+            Id = product.Id,
+            Name = product.Name,
+            Description = product.Description,
+            Price = product.Price,
+            Stock = product.Stock,
+            TotalSold = product.TotalSold,
+            ImageUrl = product.ImageUrl,
+            CategoryId = product.CategoryId
+        };
+    }
+
 }
