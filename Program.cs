@@ -59,10 +59,24 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidAudience = jwtSettings.Audience,
             IssuerSigningKey = new SymmetricSecurityKey(keyBytes),
             RoleClaimType = ClaimTypes.Role,
-            NameClaimType = JwtRegisteredClaimNames.Name
+            NameClaimType = JwtRegisteredClaimNames.Name,
+            ClockSkew = TimeSpan.Zero,
+        };
+
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                // Si no viene en Authorization header, lo busca en cookies.
+                var token = context.Request.Cookies["token"];
+                if (!string.IsNullOrEmpty(token))
+                {
+                    context.Token = token;
+                }
+                return Task.CompletedTask;
+            }
         };
     });
-
 // =====================================
 // AUTHORIZATION
 // =====================================
@@ -119,11 +133,7 @@ app.MapControllers();
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-    // Limpia la base de datos.
-    await context.Database.EnsureDeletedAsync();
     await context.Database.MigrateAsync();
-
     await DbDefaultProducts.SeedAsync(context);
 }
 

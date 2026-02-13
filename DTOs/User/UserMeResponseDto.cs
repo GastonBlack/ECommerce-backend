@@ -7,4 +7,5 @@ public class UserMeResponseDto
     public string Email { get; set; } = null!;
     public string? Address { get; set; }
     public string? Phone { get; set; }
+    public string Rol { get; set; } = null!;
 }

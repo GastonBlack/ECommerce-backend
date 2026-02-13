@@ -1,12 +1,10 @@
 using System.Text.RegularExpressions;
-using BCrypt.Net;
 using ECommerceAPI.Data;
 using ECommerceAPI.DTOs.Auth;
+using ECommerceAPI.DTOs.User;
 using ECommerceAPI.Models;
 using ECommerceAPI.Services.Jwt;
 using ECommerceAPI.Services.Users;
-using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.EntityFrameworkCore;
 
 namespace ECommerceAPI.Services.Auth;
 
@@ -64,7 +62,6 @@ public class AuthService : IAuthService
         };
     }
 
-
     // ================
     //  LOGIN
     // ================
@@ -95,4 +92,23 @@ public class AuthService : IAuthService
             Token = token,
         };
     }
+
+    public async Task<UserMeResponseDto?> GetMeAsync(int userId)
+    {
+        var user = await _userService.GetByIdAsync(userId);
+
+        if (user == null || user.IsDisabled)
+            return null;
+
+        return new UserMeResponseDto
+        {
+            Id = user.Id,
+            FullName = user.FullName,
+            Email = user.Email,
+            Phone = user.Phone,
+            Address = user.Address,
+            Rol = user.Rol
+        };
+    }
+
 }
