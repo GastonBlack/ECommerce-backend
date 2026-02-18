@@ -56,9 +56,16 @@ public class CategoryController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Delete(int id)
     {
-        bool deleted = await _service.DeleteAsync(id);
-        if (!deleted) return NotFound();
+        try
+        {
+            var deleted = await _service.DeleteAsync(id);
+            if (!deleted) return NotFound();
 
-        return Ok(new { message = "Categoria eliminada." });
+            return Ok(new { message = "Categoria eliminada." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
     }
 }

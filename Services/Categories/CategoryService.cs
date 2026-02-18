@@ -80,8 +80,15 @@ public class CategoryService : ICategoryService
         if (category == null) return false;
 
         _db.Categories.Remove(category);
-        await _db.SaveChangesAsync();
 
-        return true;
+        try
+        {
+            await _db.SaveChangesAsync();
+            return true;
+        }
+        catch (DbUpdateException)
+        {
+            throw new InvalidOperationException("No se puede eliminar la categoría porque tiene productos asociados.");
+        }
     }
 }
