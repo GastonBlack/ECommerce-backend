@@ -38,7 +38,16 @@ builder.Services.AddCors(options =>
             policy.AllowAnyHeader()
                   .AllowAnyMethod()
                   .AllowCredentials()
-                  .WithOrigins("http://localhost:3000");
+                  .SetIsOriginAllowed(origin =>
+            {
+                // Local dev
+                if (origin == "http://localhost:3000") return true;
+
+                // Cualquier deploy de Vercel para este proyecto
+                if (origin.EndsWith(".vercel.app")) return true;
+
+                return false;
+            });
         });
 });
 
@@ -77,10 +86,18 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             }
         };
     });
+
 // =====================================
 // AUTHORIZATION
 // =====================================
 builder.Services.AddAuthorization();
+
+// =====================================
+// MERCADO PAGO
+// =====================================
+builder.Services.Configure<MercadoPagoSettings>(
+    builder.Configuration.GetSection("MercadoPago")
+);
 
 // =====================================
 // CLOUDINARY
@@ -133,6 +150,10 @@ app.MapControllers();
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+    // Debug
+    // await context.Database.EnsureDeletedAsync();
+
     await context.Database.MigrateAsync();
     await DbDefaultProducts.SeedAsync(context);
 }

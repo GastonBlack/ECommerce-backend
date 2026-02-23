@@ -14,22 +14,18 @@ public class AuthController : ControllerBase
 {
     // ==============================================
     private readonly IAuthService _authService;
-    private readonly IWebHostEnvironment _env;
-    public AuthController(IAuthService authService, IWebHostEnvironment env)
+    public AuthController(IAuthService authService)
     {
         _authService = authService;
-        _env = env;
     }
 
     private CookieOptions BuildTokenCookieOptions()
     {
-        var isProd = !_env.IsDevelopment();// localhost = dev
-
         return new CookieOptions
         {
             HttpOnly = true,
-            Secure = isProd,
-            SameSite = isProd ? SameSiteMode.None : SameSiteMode.Lax,
+            Secure = true,
+            SameSite = SameSiteMode.None,
             Expires = DateTimeOffset.UtcNow.AddDays(7),
             Path = "/"
         };
@@ -37,13 +33,11 @@ public class AuthController : ControllerBase
 
     private CookieOptions BuildUserCookieOptions()
     {
-        var isProd = !_env.IsDevelopment();
-
         return new CookieOptions
         {
             HttpOnly = false,
-            Secure = isProd,
-            SameSite = isProd ? SameSiteMode.None : SameSiteMode.Lax,
+            Secure = true,
+            SameSite = SameSiteMode.None,
             Expires = DateTimeOffset.UtcNow.AddDays(7),
             Path = "/"
         };

@@ -42,5 +42,12 @@ public class AppDbContext : DbContext
             .WithMany()
             .HasForeignKey(oi => oi.ProductId)
             .OnDelete(DeleteBehavior.Restrict); // <- SI UN PRODUCTO YA FUE COMPRADO, NO SE PUEDE BORRAR.
+
+        // Order -> Items
+        modelBuilder.Entity<OrderItem>()
+            .HasOne(oi => oi.Order)
+            .WithMany(o => o.Items)
+            .HasForeignKey(oi => oi.OrderId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

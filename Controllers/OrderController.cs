@@ -1,57 +1,48 @@
 using ECommerceAPI.Extensions;
-using ECommerceAPI.Services.Orders;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using ECommerceAPI.Data;
 
 namespace ECommerceAPI.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
-
 public class OrderController : ControllerBase
 {
-    // ===========================================
-    private readonly IOrderService _service;
-    public OrderController(IOrderService service)
+    // ==================================================
+    private readonly AppDbContext _db;
+    public OrderController(AppDbContext db)
     {
-        _service = service;
+        _db = db;
     }
-    // ===========================================
+    // ==================================================
 
-    [HttpPost("checkout")]
-    public async Task<IActionResult> Checkout()
-    {
-        var userId = User.GetUserId();
-
-        try
-        {
-            return Ok(await _service.CreateOrderAsync(userId));
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(new { error = ex.Message });
-        }
-    }
-
-
-    [HttpGet("")]
-    public async Task<IActionResult> GetUserOrders()
+    [HttpGet]
+    public async Task<IActionResult> GetMyOrders()
     {
         var userId = User.GetUserId();
 
-        return Ok(await _service.GetUserOrdersAsync(userId));
+        var orders = await _db.Orders
+            .Where(o => o.UserId == userId)
+            .OrderByDescending(o => o.CreatedAt)
+            .ToListAsync();
+
+        return Ok(orders);
     }
 
-
-    [HttpGet("{orderId}")]
+    [HttpGet("{orderId:int}")]
     public async Task<IActionResult> GetById(int orderId)
     {
         var userId = User.GetUserId();
 
-        var order = await _service.GetByIdAsync(orderId, userId);
-        if (order == null) return NotFound();
+        var order = await _db.Orders
+            .Include(o => o.Items)
+            .ThenInclude(i => i.Product)
+            .FirstOrDefaultAsync(o => o.Id == orderId && o.UserId == userId);
 
+        if (order == null) return NotFound();
         return Ok(order);
     }
 }
