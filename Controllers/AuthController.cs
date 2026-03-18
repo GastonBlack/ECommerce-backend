@@ -89,7 +89,8 @@ public class AuthController : ControllerBase
     [HttpGet("verify")]
     public async Task<IActionResult> Verify()
     {
-        var userIdClaim = User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                        ?? User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
 
         if (string.IsNullOrEmpty(userIdClaim))
             return Unauthorized();
