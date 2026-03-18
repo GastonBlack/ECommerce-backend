@@ -1,5 +1,6 @@
 
 using ECommerceAPI.Data;
+using ECommerceAPI.DTOs.Common;
 using ECommerceAPI.DTOs.Product;
 using ECommerceAPI.Models;
 using Microsoft.EntityFrameworkCore;
@@ -16,6 +17,65 @@ public class ProductService : IProductService
         _db = db;
     }
     // ====================================
+
+    public async Task<PagedResultDto<ProductResponseDto>> GetPagedAsync(int page, int pageSize, string? sort, int? categoryId, decimal? minPrice, decimal? maxPrice, string? search)
+    {
+        page = page < 1 ? 1 : page;
+        pageSize = pageSize < 1 ? 25 : Math.Min(pageSize, 100);
+
+        IQueryable<Product> query = _db.Products;
+
+        // Filtros.
+        if (categoryId.HasValue) query = query.Where(p => p.CategoryId == categoryId.Value);
+        if (minPrice.HasValue) query = query.Where(p => p.Price >= minPrice.Value);
+        if (maxPrice.HasValue) query = query.Where(p => p.Price <= maxPrice.Value);
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim().ToLower();
+            query = query.Where(p => p.Name.ToLower().Contains(s));
+        }
+
+        // Sort.
+        query = sort switch
+        {
+            "popular" => query.OrderByDescending(p => p.TotalSold),
+            "price-asc" => query.OrderBy(p => p.Price),
+            "price-desc" => query.OrderByDescending(p => p.Price),
+            "name-asc" => query.OrderBy(p => p.Name),
+            "name-desc" => query.OrderByDescending(p => p.Name),
+            _ => query.OrderBy(p => p.Id),
+        };
+
+        var totalItems = await query.CountAsync();
+
+        var products = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        var items = products.Select(p => new ProductResponseDto
+        {
+            Id = p.Id,
+            Name = p.Name,
+            Description = p.Description,
+            Price = p.Price,
+            Stock = p.Stock,
+            ImageUrl = p.ImageUrl,
+            CategoryId = p.CategoryId
+        }).ToList();
+
+        var totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
+
+        return new PagedResultDto<ProductResponseDto>
+        {
+            Items = items,
+            Page = page,
+            PageSize = pageSize,
+            TotalItems = totalItems,
+            TotalPages = totalPages
+        };
+    }
+
 
     // GET ALL
     public async Task<List<ProductResponseDto>> GetAllAsync(string? sort = null)
@@ -145,37 +205,57 @@ public class ProductService : IProductService
         return true;
     }
 
-
-    // GET ALL para el admin.
-    public async Task<List<ProductAdminResponseDto>> GetAllAdminAsync(string? sort = null)
+    public async Task<PagedResultDto<ProductAdminResponseDto>> GetPagedAdminAsync(
+        int page,
+        int pageSize,
+        string? sort,
+        int? categoryId,
+        decimal? minPrice,
+        decimal? maxPrice,
+        string? search
+    )
     {
+        page = page < 1 ? 1 : page;
+        pageSize = pageSize < 1 ? 25 : Math.Min(pageSize, 25); // admin: máximo 25
+
         IQueryable<Product> query = _db.Products;
 
-        switch (sort)
+        // filtros
+        if (categoryId.HasValue) query = query.Where(p => p.CategoryId == categoryId.Value);
+        if (minPrice.HasValue) query = query.Where(p => p.Price >= minPrice.Value);
+        if (maxPrice.HasValue) query = query.Where(p => p.Price <= maxPrice.Value);
+        if (!string.IsNullOrWhiteSpace(search))
         {
-            case "popular":
-                query = query.OrderByDescending(p => p.TotalSold);
-                break;
-
-            case "price-asc":
-                query = query.OrderBy(p => p.Price);
-                break;
-
-            case "price-desc":
-                query = query.OrderByDescending(p => p.Price);
-                break;
-
-            case "name-asc":
-                query = query.OrderBy(p => p.Name);
-                break;
-
-            case "name-desc":
-                query = query.OrderByDescending(p => p.Name);
-                break;
+            var s = search.Trim().ToLower();
+            query = query.Where(p => p.Name.ToLower().Contains(s));
         }
 
-        var products = await query.ToListAsync();
-        return [.. products.Select(p => new ProductAdminResponseDto{
+        // sort
+        query = sort switch
+        {
+            "popular" => query.OrderByDescending(p => p.TotalSold),
+
+            "stock-asc" => query.OrderBy(p => p.Stock).ThenBy(p => p.Id),
+            "stock-desc" => query.OrderByDescending(p => p.Stock).ThenBy(p => p.Id),
+
+            "price-asc" => query.OrderBy(p => p.Price),
+            "price-desc" => query.OrderByDescending(p => p.Price),
+
+            "name-asc" => query.OrderBy(p => p.Name),
+            "name-desc" => query.OrderByDescending(p => p.Name),
+
+            _ => query.OrderBy(p => p.Id),
+        };
+
+        var totalItems = await query.CountAsync();
+
+        var products = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        var items = products.Select(p => new ProductAdminResponseDto
+        {
             Id = p.Id,
             Name = p.Name,
             Description = p.Description,
@@ -184,26 +264,17 @@ public class ProductService : IProductService
             TotalSold = p.TotalSold,
             ImageUrl = p.ImageUrl,
             CategoryId = p.CategoryId
-        })];
-    }
+        }).ToList();
 
+        var totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
 
-    public async Task<ProductAdminResponseDto?> GetByIdAdminAsync(int id)
-    {
-        var product = await _db.Products.FindAsync(id);
-        if (product == null) return null;
-
-        return new ProductAdminResponseDto
+        return new PagedResultDto<ProductAdminResponseDto>
         {
-            Id = product.Id,
-            Name = product.Name,
-            Description = product.Description,
-            Price = product.Price,
-            Stock = product.Stock,
-            TotalSold = product.TotalSold,
-            ImageUrl = product.ImageUrl,
-            CategoryId = product.CategoryId
+            Items = items,
+            Page = page,
+            PageSize = pageSize,
+            TotalItems = totalItems,
+            TotalPages = totalPages
         };
     }
-
 }

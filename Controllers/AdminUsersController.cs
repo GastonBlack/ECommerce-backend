@@ -17,10 +17,17 @@ public class AdminUsersController : ControllerBase
         _service = service;
     }
     // ===========================================
+
+    // GET paginado + filtros.
     [HttpGet]
-    public async Task<IActionResult> GetAll()
+    public async Task<IActionResult> GetPaged(
+    [FromQuery] int page = 1,
+    [FromQuery] int pageSize = 25,
+    [FromQuery] string? search = null,
+    [FromQuery] bool includeDisabled = false
+)
     {
-        return Ok(await _service.GetAllForAdminAsync());
+        return Ok(await _service.GetPagedForAdminAsync(page, pageSize, search, includeDisabled));
     }
 
 

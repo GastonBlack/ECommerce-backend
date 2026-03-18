@@ -1,3 +1,4 @@
+using ECommerceAPI.DTOs.Common;
 using ECommerceAPI.DTOs.User;
 using ECommerceAPI.Models;
 
@@ -15,7 +16,8 @@ public interface IUserService
     Task<UserMeResponseDto?> UpdateMeAsync(int userId, UserUpdateMeDto dto);                        // Para página de profile. //
     Task<(bool ok, string? error)> ChangePasswordAsync(int userId, UserChangePasswordDto dto);      /////////////////////////////
 
-    Task<List<UserAdminListDto>> GetAllForAdminAsync();     // Administración.
-    Task<UserAdminListDto?> GetByIdForAdminAsync(int id);   // Administración.
-
+    // Administración.
+    Task<List<UserAdminListDto>> GetAllForAdminAsync();
+    Task<UserAdminListDto?> GetByIdForAdminAsync(int id);
+    Task<PagedResultDto<UserAdminListDto>> GetPagedForAdminAsync(int page, int pageSize, string? search, bool includeDisabled);
 }

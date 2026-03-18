@@ -1,8 +1,7 @@
 using ECommerceAPI.Extensions;
+using ECommerceAPI.Services.Orders;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using ECommerceAPI.Data;
 
 namespace ECommerceAPI.Controllers;
 
@@ -11,38 +10,40 @@ namespace ECommerceAPI.Controllers;
 [Authorize]
 public class OrderController : ControllerBase
 {
-    // ==================================================
-    private readonly AppDbContext _db;
-    public OrderController(AppDbContext db)
+    // =====================================================
+    private readonly IOrderService _service;
+    public OrderController(IOrderService service)
     {
-        _db = db;
+        _service = service;
     }
-    // ==================================================
+    // =====================================================
 
     [HttpGet]
-    public async Task<IActionResult> GetMyOrders()
+    public async Task<IActionResult> GetMyOrders(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10
+    )
     {
         var userId = User.GetUserId();
 
-        var orders = await _db.Orders
-            .Where(o => o.UserId == userId)
-            .OrderByDescending(o => o.CreatedAt)
-            .ToListAsync();
+        var result = await _service.GetUserOrdersPagedAsync(
+            userId,
+            page,
+            pageSize
+        );
 
-        return Ok(orders);
+        return Ok(result);
     }
 
-    [HttpGet("{orderId:int}")]
+    [HttpGet("{orderId}")]
     public async Task<IActionResult> GetById(int orderId)
     {
         var userId = User.GetUserId();
 
-        var order = await _db.Orders
-            .Include(o => o.Items)
-            .ThenInclude(i => i.Product)
-            .FirstOrDefaultAsync(o => o.Id == orderId && o.UserId == userId);
+        var order = await _service.GetByIdAsync(orderId, userId);
 
         if (order == null) return NotFound();
+
         return Ok(order);
     }
 }

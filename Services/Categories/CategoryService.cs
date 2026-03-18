@@ -42,17 +42,29 @@ public class CategoryService : ICategoryService
 
     public async Task<CategoryResponseDto> CreateAsync(CategoryCreateDto dto)
     {
+        if (string.IsNullOrWhiteSpace(dto.Name) || dto.Name.Trim().Length < 2 || dto.Name.Trim().Length > 40)
+            throw new InvalidOperationException("El nombre debe tener al menos 2 caracteres y máximo 40.");
+
+        var normalizedName = dto.Name.Trim().ToLower();
+
+        var alreadyExists = await _db.Categories
+            .AnyAsync(c => c.Name.ToLower() == normalizedName);
+
+        if (alreadyExists)
+            throw new InvalidOperationException("Ya existe una categoría con ese nombre.");
+
         var category = new Category
         {
-            Name = dto.Name,
+            Name = dto.Name.Trim()
         };
+
         _db.Categories.Add(category);
         await _db.SaveChangesAsync();
 
         return new CategoryResponseDto
         {
             Id = category.Id,
-            Name = category.Name,
+            Name = category.Name
         };
     }
 
@@ -62,14 +74,23 @@ public class CategoryService : ICategoryService
         var category = await _db.Categories.FindAsync(id);
         if (category == null) return null;
 
-        category.Name = dto.Name;
+        var normalizedName = dto.Name.Trim().ToLower();
+
+        var alreadyExists = await _db.Categories
+            .AnyAsync(c => c.Id != id && c.Name.ToLower() == normalizedName);
+
+        if (alreadyExists)
+            throw new InvalidOperationException("Ya existe otra categoría con ese nombre");
+        if (normalizedName.Length < 2)
+
+            category.Name = dto.Name.Trim();
 
         await _db.SaveChangesAsync();
 
         return new CategoryResponseDto
         {
             Id = category.Id,
-            Name = category.Name,
+            Name = category.Name
         };
     }
 

@@ -12,7 +12,7 @@ public class Order
     public decimal TotalAmount { get; set; }
 
     // Mercado Pago.
-    public string Status { get; set; } = "Pending"; // Pending / Paid / Cancelled
+    public string Status { get; set; } = OrderStatuses.Pending; // Pending - Paid - Preparing - Shipped - Delivered - Cancelled
     public string? MercadoPagoPreferenceId { get; set; }
     public long? MercadoPagoPaymentId { get; set; }
 

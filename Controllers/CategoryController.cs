@@ -1,4 +1,3 @@
-
 using ECommerceAPI.DTOs.Category;
 using ECommerceAPI.Services.Categories;
 using Microsoft.AspNetCore.Authorization;
@@ -8,7 +7,6 @@ namespace ECommerceAPI.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-
 public class CategoryController : ControllerBase
 {
     // ==================================================
@@ -25,7 +23,7 @@ public class CategoryController : ControllerBase
         return Ok(await _service.GetAllAsync());
     }
 
-    [HttpGet("{id}")]
+    [HttpGet("{id:int}")]
     public async Task<IActionResult> GetById(int id)
     {
         var category = await _service.GetByIdAsync(id);
@@ -36,23 +34,37 @@ public class CategoryController : ControllerBase
 
     [HttpPost]
     [Authorize(Roles = "Admin")]
-    public async Task<IActionResult> Create(CategoryCreateDto dto)
+    public async Task<IActionResult> Create([FromBody] CategoryCreateDto dto)
     {
-        var category = await _service.CreateAsync(dto);
-        return Ok(category);
+        try
+        {
+            var category = await _service.CreateAsync(dto);
+            return Ok(category);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
     }
 
-    [HttpPut("{id}")]
+    [HttpPut("{id:int}")]
     [Authorize(Roles = "Admin")]
-    public async Task<IActionResult> Update(int id, CategoryUpdateDto dto)
+    public async Task<IActionResult> Update(int id, [FromBody] CategoryUpdateDto dto)
     {
-        var category = await _service.UpdateAsync(id, dto);
-        if (category == null) return NotFound();
+        try
+        {
+            var category = await _service.UpdateAsync(id, dto);
+            if (category == null) return NotFound();
 
-        return Ok(category);
+            return Ok(category);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
     }
 
-    [HttpDelete("{id}")]
+    [HttpDelete("{id:int}")]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Delete(int id)
     {
@@ -61,7 +73,7 @@ public class CategoryController : ControllerBase
             var deleted = await _service.DeleteAsync(id);
             if (!deleted) return NotFound();
 
-            return Ok(new { message = "Categoria eliminada." });
+            return Ok(new { message = "Categoría eliminada." });
         }
         catch (InvalidOperationException ex)
         {

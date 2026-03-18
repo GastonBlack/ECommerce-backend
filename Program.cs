@@ -32,23 +32,13 @@ var keyBytes = Encoding.UTF8.GetBytes(jwtSettings.Key);
 // =====================================
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowFrontend",
-        policy =>
-        {
-            policy.AllowAnyHeader()
-                  .AllowAnyMethod()
-                  .AllowCredentials()
-                  .SetIsOriginAllowed(origin =>
-            {
-                // Local dev
-                if (origin == "http://localhost:3000") return true;
-
-                // Cualquier deploy de Vercel para este proyecto
-                if (origin.EndsWith(".vercel.app")) return true;
-
-                return false;
-            });
-        });
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        policy.WithOrigins("http://localhost:3000", "https://ecommerce-git-main-gastonreds-projects.vercel.app")
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials();
+    });
 });
 
 // =====================================
@@ -118,7 +108,8 @@ builder.Services.AddScoped<ECommerceAPI.Services.Products.IProductService, EComm
 builder.Services.AddScoped<ECommerceAPI.Services.Categories.ICategoryService, ECommerceAPI.Services.Categories.CategoryService>();
 builder.Services.AddScoped<ECommerceAPI.Services.Cart.ICartService, ECommerceAPI.Services.Cart.CartService>();
 builder.Services.AddScoped<ECommerceAPI.Services.Orders.IOrderService, ECommerceAPI.Services.Orders.OrderService>();
-
+builder.Services.AddScoped<ECommerceAPI.Services.Orders.IAdminOrderService, ECommerceAPI.Services.Orders.AdminOrderService>();
+builder.Services.AddScoped<ECommerceAPI.Services.Payments.IPaymentService, ECommerceAPI.Services.Payments.PaymentService>();
 
 // =====================================
 // CONTROLLERS + SWAGGER
@@ -157,5 +148,4 @@ using (var scope = app.Services.CreateScope())
     await context.Database.MigrateAsync();
     await DbDefaultProducts.SeedAsync(context);
 }
-
 app.Run();

@@ -1,4 +1,3 @@
-using CloudinaryDotNet;
 using ECommerceAPI.DTOs.Product;
 using ECommerceAPI.Services.ImageUpload;
 using ECommerceAPI.Services.Products;
@@ -22,19 +21,17 @@ public class ProductController : ControllerBase
 
     [HttpGet]
     [AllowAnonymous]
-    public async Task<IActionResult> GetAll([FromQuery] string? sort = null)
+    public async Task<IActionResult> GetAll(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25,
+        [FromQuery] string? sort = null,
+        [FromQuery] int? categoryId = null,
+        [FromQuery] decimal? minPrice = null,
+        [FromQuery] decimal? maxPrice = null,
+        [FromQuery] string? search = null
+    )
     {
-        return Ok(await _service.GetAllAsync(sort));
-    }
-
-
-    [HttpGet("{id}")]
-    [AllowAnonymous]
-    public async Task<IActionResult> GetById(int id)
-    {
-        var product = await _service.GetByIdAsync(id);
-        if (product == null) return NotFound();
-        return Ok(product);
+        return Ok(await _service.GetPagedAsync(page, pageSize, sort, categoryId, minPrice, maxPrice, search));
     }
 
     [HttpPost]
@@ -81,19 +78,16 @@ public class ProductController : ControllerBase
 
     [HttpGet("admin")]
     [Authorize(Roles = "Admin")]
-    public async Task<IActionResult> GetAllAdmin([FromQuery] string? sort = null)
+    public async Task<IActionResult> GetAllAdmin(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25,
+        [FromQuery] string? sort = null,
+        [FromQuery] int? categoryId = null,
+        [FromQuery] decimal? minPrice = null,
+        [FromQuery] decimal? maxPrice = null,
+        [FromQuery] string? search = null
+    )
     {
-        return Ok(await _service.GetAllAdminAsync(sort));
-    }
-
-
-    [HttpGet("admin/{id}")]
-    [Authorize(Roles = "Admin")]
-    public async Task<IActionResult> GetByIdAdmin(int id)
-    {
-        var product = await _service.GetByIdAdminAsync(id);
-        if (product == null) return NotFound();
-
-        return Ok(product);
+        return Ok(await _service.GetPagedAdminAsync(page, pageSize, sort, categoryId, minPrice, maxPrice, search));
     }
 }

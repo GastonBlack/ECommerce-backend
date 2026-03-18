@@ -1,4 +1,5 @@
 using ECommerceAPI.Data;
+using ECommerceAPI.DTOs.Common;
 using ECommerceAPI.DTOs.Order;
 using ECommerceAPI.Models;
 using Microsoft.EntityFrameworkCore;
@@ -15,80 +16,51 @@ public class OrderService : IOrderService
     }
     // ===================================
 
-    // CREATE ORDER (CHECKOUT)
-    public async Task<OrderResponseDto> CreateOrderAsync(int userId)
-    {
-        // Obtener el carrito del usuario
-        var cartItems = await _db.CartItems
-            .Include(c => c.Product)
-            .Where(c => c.UserId == userId)
-            .ToListAsync();
-
-        if (cartItems.Count == 0)
-            throw new Exception("El carrito está vacío");
-
-        // Crea la orden
-        var order = new Order
-        {
-            UserId = userId,
-            TotalAmount = cartItems.Sum(i => i.Product.Price * i.Quantity),
-        };
-
-        _db.Orders.Add(order);
-        await _db.SaveChangesAsync(); // Para obtener order.Id
-
-        // Crear OrderItems
-        var orderItems = cartItems.Select(item => new OrderItem
-        {
-            OrderId = order.Id,
-            ProductId = item.ProductId,
-            Quantity = item.Quantity,
-            PriceAtPurchase = item.Product.Price,
-        }).ToList();
-
-        // Vaciar carrito
-        _db.CartItems.RemoveRange(cartItems);
-        await _db.SaveChangesAsync();
-
-        // REspuesta
-        return new OrderResponseDto
-        {
-            OrderId = order.Id,
-            TotalAmount = order.TotalAmount,
-            CreatedAt = order.CreatedAt,
-            Items = [.. orderItems.Select(i => new OrderItemDto
-            {
-                ProductId = i.ProductId,
-                ProductName = cartItems.First(c => c.ProductId == i.ProductId).Product.Name,
-                PriceAtPurchase = i.PriceAtPurchase,
-                Quantity = i.Quantity
-            })]
-        };
-    }
-
-
     // GET USER ORDERS
-    public async Task<List<OrderResponseDto>> GetUserOrdersAsync(int userId)
+    public async Task<PagedResultDto<OrderResponseDto>> GetUserOrdersPagedAsync(int userId, int page, int pageSize)
     {
-        var orders = await _db.Orders
+        page = page < 1 ? 1 : page;
+        pageSize = pageSize < 1 ? 10 : Math.Min(pageSize, 50);
+
+        var query = _db.Orders
             .Where(o => o.UserId == userId)
             .Include(o => o.Items)
             .ThenInclude(i => i.Product)
+            .OrderByDescending(o => o.CreatedAt);
+
+        var totalItems = await query.CountAsync();
+
+        var orders = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync();
 
-        return [.. orders.Select(order => new OrderResponseDto
+        var items = orders.Select(order => new OrderResponseDto
         {
             OrderId = order.Id,
             TotalAmount = order.TotalAmount,
+            Status = order.Status,
             CreatedAt = order.CreatedAt,
-            Items = [.. order.Items.Select(i => new OrderItemDto
+            TotalItems = order.Items.Count,
+            Items = order.Items.Select(i => new OrderItemDto
             {
                 ProductId = i.ProductId,
                 ProductName = i.Product.Name,
                 PriceAtPurchase = i.PriceAtPurchase,
                 Quantity = i.Quantity
-            })]
-        })];
+            }).ToList(),
+        }).ToList();
+
+        var totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
+
+        return new PagedResultDto<OrderResponseDto>
+        {
+            Items = items,
+            Page = page,
+            PageSize = pageSize,
+            TotalItems = totalItems,
+            TotalPages = totalPages
+        };
     }
 
     // GET ORDER BY ID
@@ -105,6 +77,8 @@ public class OrderService : IOrderService
         {
             OrderId = order.Id,
             TotalAmount = order.TotalAmount,
+            Status = order.Status,
+            TotalItems = order.Items.Count,
             CreatedAt = order.CreatedAt,
             Items = [.. order.Items.Select(i => new OrderItemDto
             {

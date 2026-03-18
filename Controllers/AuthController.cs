@@ -21,11 +21,13 @@ public class AuthController : ControllerBase
 
     private CookieOptions BuildTokenCookieOptions()
     {
+        var isProd = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Production";
+
         return new CookieOptions
         {
             HttpOnly = true,
-            Secure = true,
-            SameSite = SameSiteMode.None,
+            Secure = isProd,
+            SameSite = isProd ? SameSiteMode.None : SameSiteMode.Lax,
             Expires = DateTimeOffset.UtcNow.AddDays(7),
             Path = "/"
         };
@@ -33,11 +35,13 @@ public class AuthController : ControllerBase
 
     private CookieOptions BuildUserCookieOptions()
     {
+        var isProd = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Production";
+
         return new CookieOptions
         {
-            HttpOnly = false,
-            Secure = true,
-            SameSite = SameSiteMode.None,
+            HttpOnly = true,
+            Secure = isProd,
+            SameSite = isProd ? SameSiteMode.None : SameSiteMode.Lax,
             Expires = DateTimeOffset.UtcNow.AddDays(7),
             Path = "/"
         };
@@ -110,8 +114,15 @@ public class AuthController : ControllerBase
     [HttpPost("logout")]
     public IActionResult Logout()
     {
-        Response.Cookies.Delete("token", new CookieOptions { Path = "/" });
-        Response.Cookies.Delete("userName", new CookieOptions { Path = "/" });
+        var tokenOptions = BuildTokenCookieOptions();
+        var userOptions = BuildUserCookieOptions();
+
+        tokenOptions.Expires = DateTimeOffset.UtcNow.AddDays(-1);
+        userOptions.Expires = DateTimeOffset.UtcNow.AddDays(-1);
+
+        Response.Cookies.Append("token", "", tokenOptions);
+        Response.Cookies.Append("userName", "", userOptions);
+
         return Ok();
     }
 }

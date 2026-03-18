@@ -1,4 +1,5 @@
 using ECommerceAPI.Data;
+using ECommerceAPI.DTOs.Common;
 using ECommerceAPI.DTOs.User;
 using ECommerceAPI.Models;
 using Microsoft.EntityFrameworkCore;
@@ -139,7 +140,6 @@ public class UserService : IUserService
     }
 
 
-
     public async Task<UserAdminListDto?> GetByIdForAdminAsync(int id)
     {
         return await _db.Users
@@ -154,5 +154,61 @@ public class UserService : IUserService
                 CreatedAt = u.CreatedAt,
                 DisabledAt = u.DisabledAt
             }).FirstOrDefaultAsync();
+    }
+
+    public async Task<PagedResultDto<UserAdminListDto>> GetPagedForAdminAsync(
+        int page,
+        int pageSize,
+        string? search,
+        bool includeDisabled
+    )
+    {
+        page = page < 1 ? 1 : page;
+        pageSize = pageSize < 1 ? 25 : Math.Min(pageSize, 100);
+
+        IQueryable<User> q = _db.Users;
+
+        // Filtro: por defecto NO incluir deshabilitados.
+        if (!includeDisabled)
+            q = q.Where(u => !u.IsDisabled);
+
+        // Filtro búsqueda.
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim().ToLower();
+            q = q.Where(u =>
+                u.FullName.ToLower().Contains(s) ||
+                u.Email.ToLower().Contains(s)
+            );
+        }
+
+        var totalItems = await q.CountAsync();
+
+        var items = await q
+            .OrderByDescending(u => u.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(u => new UserAdminListDto
+            {
+                Id = u.Id,
+                FullName = u.FullName,
+                Email = u.Email,
+                Rol = u.Rol,
+                IsDisabled = u.IsDisabled,
+                CreatedAt = u.CreatedAt,
+                DisabledAt = u.DisabledAt
+            })
+            .ToListAsync();
+
+        var totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
+
+        return new PagedResultDto<UserAdminListDto>
+        {
+            Items = items,
+            Page = page,
+            PageSize = pageSize,
+            TotalItems = totalItems,
+            TotalPages = totalPages
+        };
     }
 }
