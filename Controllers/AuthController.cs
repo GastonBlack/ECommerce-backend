@@ -21,13 +21,11 @@ public class AuthController : ControllerBase
 
     private CookieOptions BuildTokenCookieOptions()
     {
-        var isProd = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Production";
-
         return new CookieOptions
         {
             HttpOnly = true,
-            Secure = isProd,
-            SameSite = isProd ? SameSiteMode.None : SameSiteMode.Lax,
+            Secure = true,
+            SameSite = SameSiteMode.None,
             Expires = DateTimeOffset.UtcNow.AddDays(7),
             Path = "/"
         };
@@ -35,13 +33,11 @@ public class AuthController : ControllerBase
 
     private CookieOptions BuildUserCookieOptions()
     {
-        var isProd = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Production";
-
         return new CookieOptions
         {
             HttpOnly = true,
-            Secure = isProd,
-            SameSite = isProd ? SameSiteMode.None : SameSiteMode.Lax,
+            Secure = true,
+            SameSite = SameSiteMode.None,
             Expires = DateTimeOffset.UtcNow.AddDays(7),
             Path = "/"
         };
@@ -93,20 +89,16 @@ public class AuthController : ControllerBase
     [HttpGet("verify")]
     public async Task<IActionResult> Verify()
     {
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var userIdClaim = User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
 
         if (string.IsNullOrEmpty(userIdClaim))
-        {
             return Unauthorized();
-        }
 
         var userId = int.Parse(userIdClaim);
         var user = await _authService.GetMeAsync(userId);
 
         if (user == null)
-        {
             return Unauthorized();
-        }
 
         return Ok(user);
     }
