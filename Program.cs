@@ -117,6 +117,7 @@ builder.Services.AddScoped<ECommerceAPI.Services.Payments.IPaymentService, EComm
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddMemoryCache();
 
 // =====================================
 // APP MIDDLEWARE

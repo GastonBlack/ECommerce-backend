@@ -1,8 +1,8 @@
-
 using ECommerceAPI.Data;
 using ECommerceAPI.DTOs.Category;
 using ECommerceAPI.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace ECommerceAPI.Services.Categories;
 
@@ -10,20 +10,39 @@ public class CategoryService : ICategoryService
 {
     // =======================================
     private readonly AppDbContext _db;
-    public CategoryService(AppDbContext db)
+    private readonly IMemoryCache _cache;
+
+    private const string CategoriesCacheKey = "categories_all";
+
+    public CategoryService(AppDbContext db, IMemoryCache cache)
     {
         _db = db;
+        _cache = cache;
     }
     // =======================================
+
     public async Task<List<CategoryResponseDto>> GetAllAsync()
     {
-        var categories = await _db.Categories.ToListAsync();
-
-        return categories.Select(c => new CategoryResponseDto
+        if (_cache.TryGetValue(CategoriesCacheKey, out List<CategoryResponseDto>? cachedCategories))
         {
-            Id = c.Id,
-            Name = c.Name,
-        }).ToList();
+            return cachedCategories!;
+        }
+
+        var categories = await _db.Categories
+            .OrderBy(c => c.Name)
+            .Select(c => new CategoryResponseDto
+            {
+                Id = c.Id,
+                Name = c.Name,
+            })
+            .ToListAsync();
+
+        var cacheOptions = new MemoryCacheEntryOptions()
+            .SetAbsoluteExpiration(TimeSpan.FromMinutes(10));
+
+        _cache.Set(CategoriesCacheKey, categories, cacheOptions);
+
+        return categories;
     }
 
 
@@ -61,6 +80,8 @@ public class CategoryService : ICategoryService
         _db.Categories.Add(category);
         await _db.SaveChangesAsync();
 
+        _cache.Remove(CategoriesCacheKey);
+
         return new CategoryResponseDto
         {
             Id = category.Id,
@@ -74,18 +95,22 @@ public class CategoryService : ICategoryService
         var category = await _db.Categories.FindAsync(id);
         if (category == null) return null;
 
+        if (string.IsNullOrWhiteSpace(dto.Name) || dto.Name.Trim().Length < 2 || dto.Name.Trim().Length > 40)
+            throw new InvalidOperationException("El nombre debe tener al menos 2 caracteres y máximo 40.");
+
         var normalizedName = dto.Name.Trim().ToLower();
 
         var alreadyExists = await _db.Categories
             .AnyAsync(c => c.Id != id && c.Name.ToLower() == normalizedName);
 
         if (alreadyExists)
-            throw new InvalidOperationException("Ya existe otra categoría con ese nombre");
-        if (normalizedName.Length < 2)
+            throw new InvalidOperationException("Ya existe otra categoría con ese nombre.");
 
-            category.Name = dto.Name.Trim();
+        category.Name = dto.Name.Trim();
 
         await _db.SaveChangesAsync();
+
+        _cache.Remove(CategoriesCacheKey);
 
         return new CategoryResponseDto
         {
@@ -105,6 +130,9 @@ public class CategoryService : ICategoryService
         try
         {
             await _db.SaveChangesAsync();
+
+            _cache.Remove(CategoriesCacheKey);
+
             return true;
         }
         catch (DbUpdateException)

@@ -4,6 +4,7 @@ using ECommerceAPI.DTOs.Common;
 using ECommerceAPI.DTOs.Product;
 using ECommerceAPI.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace ECommerceAPI.Services.Products;
 
@@ -12,20 +13,90 @@ public class ProductService : IProductService
 
     // ====================================
     private readonly AppDbContext _db;
-    public ProductService(AppDbContext db)
+    private readonly IMemoryCache _cache;
+
+    // Funciones para obtener e incrementar la versión global del cache de productos.
+    private int GetProductsCacheVersion()
+    {
+        return _cache.GetOrCreate(ProductsCacheVersionKey, entry =>
+        {
+            entry.Priority = CacheItemPriority.NeverRemove;
+            return 1;
+        });
+    }
+
+    private void BumpProductsCacheVersion()
+    {
+        var currentVersion = GetProductsCacheVersion();
+        _cache.Set(ProductsCacheVersionKey, currentVersion + 1);
+    }
+
+    // Builders de keys de cache que incluyen la versión global.
+    // ***********************
+    private const string ProductsCacheVersionKey = "products:cache:version";
+    private string BuildPagedProductsCacheKey(
+        int page,
+        int pageSize,
+        string? sort,
+        int? categoryId,
+        decimal? minPrice,
+        decimal? maxPrice,
+        string? search)
+    {
+        var version = GetProductsCacheVersion();
+        return $"products:v={version}:p={page}:ps={pageSize}:sort={sort ?? "null"}:cat={categoryId?.ToString() ?? "null"}:min={minPrice?.ToString() ?? "null"}:max={maxPrice?.ToString() ?? "null"}:search={(search ?? "").Trim().ToLower()}";
+    }
+
+    private string BuildAllProductsCacheKey(string? sort)
+    {
+        var version = GetProductsCacheVersion();
+        return $"products:v={version}:all:sort={sort ?? "null"}";
+    }
+
+    private string BuildProductByIdCacheKey(int id)
+    {
+        var version = GetProductsCacheVersion();
+        return $"products:v={version}:id={id}";
+    }
+    // ************************************
+
+    public ProductService(AppDbContext db, IMemoryCache cache)
     {
         _db = db;
+        _cache = cache;
     }
     // ====================================
 
-    public async Task<PagedResultDto<ProductResponseDto>> GetPagedAsync(int page, int pageSize, string? sort, int? categoryId, decimal? minPrice, decimal? maxPrice, string? search)
+    public async Task<PagedResultDto<ProductResponseDto>> GetPagedAsync(
+        int page,
+        int pageSize,
+        string? sort,
+        int? categoryId,
+        decimal? minPrice,
+        decimal? maxPrice,
+        string? search)
     {
         page = page < 1 ? 1 : page;
         pageSize = pageSize < 1 ? 25 : Math.Min(pageSize, 100);
 
+        var cacheKey = BuildPagedProductsCacheKey(
+            page,
+            pageSize,
+            sort,
+            categoryId,
+            minPrice,
+            maxPrice,
+            search
+        );
+
+        if (_cache.TryGetValue(cacheKey, out PagedResultDto<ProductResponseDto>? cachedResult))
+        {
+            return cachedResult!;
+        }
+
         IQueryable<Product> query = _db.Products;
 
-        // Filtros.
+        // Ordena por sort recibido.
         if (categoryId.HasValue) query = query.Where(p => p.CategoryId == categoryId.Value);
         if (minPrice.HasValue) query = query.Where(p => p.Price >= minPrice.Value);
         if (maxPrice.HasValue) query = query.Where(p => p.Price <= maxPrice.Value);
@@ -34,8 +105,6 @@ public class ProductService : IProductService
             var s = search.Trim().ToLower();
             query = query.Where(p => p.Name.ToLower().Contains(s));
         }
-
-        // Sort.
         query = sort switch
         {
             "popular" => query.OrderByDescending(p => p.TotalSold),
@@ -66,7 +135,7 @@ public class ProductService : IProductService
 
         var totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
 
-        return new PagedResultDto<ProductResponseDto>
+        var result = new PagedResultDto<ProductResponseDto>
         {
             Items = items,
             Page = page,
@@ -74,13 +143,26 @@ public class ProductService : IProductService
             TotalItems = totalItems,
             TotalPages = totalPages
         };
+
+        var cacheOptions = new MemoryCacheEntryOptions()
+            .SetAbsoluteExpiration(TimeSpan.FromMinutes(5));
+
+        _cache.Set(cacheKey, result, cacheOptions);
+
+        return result;
     }
 
 
     // GET ALL
     public async Task<List<ProductResponseDto>> GetAllAsync(string? sort = null)
     {
-        // Primero se filtra.
+        var cacheKey = BuildAllProductsCacheKey(sort);
+
+        if (_cache.TryGetValue(cacheKey, out List<ProductResponseDto>? cachedProducts))
+        {
+            return cachedProducts!;
+        }
+
         IQueryable<Product> query = _db.Products;
 
         switch (sort)
@@ -106,9 +188,9 @@ public class ProductService : IProductService
                 break;
         }
 
-        // Retorna los productos ya ordenados segun filtro.
         var products = await query.ToListAsync();
-        return [.. products.Select(p => new ProductResponseDto
+
+        var result = products.Select(p => new ProductResponseDto
         {
             Id = p.Id,
             Name = p.Name,
@@ -117,16 +199,29 @@ public class ProductService : IProductService
             Stock = p.Stock,
             ImageUrl = p.ImageUrl,
             CategoryId = p.CategoryId
-        })];
+        }).ToList();
+
+        var cacheOptions = new MemoryCacheEntryOptions()
+            .SetAbsoluteExpiration(TimeSpan.FromMinutes(5));
+
+        _cache.Set(cacheKey, result, cacheOptions);
+        return result;
     }
 
     // GET BY ID
     public async Task<ProductResponseDto?> GetByIdAsync(int id)
     {
+        var cacheKey = BuildProductByIdCacheKey(id);
+
+        if (_cache.TryGetValue(cacheKey, out ProductResponseDto? cachedProduct))
+        {
+            return cachedProduct;
+        }
+
         var product = await _db.Products.FindAsync(id);
         if (product == null) return null;
 
-        return new ProductResponseDto
+        var result = new ProductResponseDto
         {
             Id = product.Id,
             Name = product.Name,
@@ -136,6 +231,13 @@ public class ProductService : IProductService
             ImageUrl = product.ImageUrl,
             CategoryId = product.CategoryId
         };
+
+        var cacheOptions = new MemoryCacheEntryOptions()
+            .SetAbsoluteExpiration(TimeSpan.FromMinutes(5));
+
+        _cache.Set(cacheKey, result, cacheOptions);
+        return result;
+
     }
 
     // CREATE 
@@ -153,6 +255,7 @@ public class ProductService : IProductService
 
         _db.Products.Add(product);
         await _db.SaveChangesAsync();
+        BumpProductsCacheVersion();
 
         return new ProductResponseDto
         {
@@ -180,6 +283,7 @@ public class ProductService : IProductService
         product.CategoryId = dto.CategoryId;
 
         await _db.SaveChangesAsync();
+        BumpProductsCacheVersion();
 
         return new ProductResponseDto
         {
@@ -201,6 +305,7 @@ public class ProductService : IProductService
 
         _db.Products.Remove(product);
         await _db.SaveChangesAsync();
+        BumpProductsCacheVersion();
 
         return true;
     }
@@ -220,7 +325,6 @@ public class ProductService : IProductService
 
         IQueryable<Product> query = _db.Products;
 
-        // filtros
         if (categoryId.HasValue) query = query.Where(p => p.CategoryId == categoryId.Value);
         if (minPrice.HasValue) query = query.Where(p => p.Price >= minPrice.Value);
         if (maxPrice.HasValue) query = query.Where(p => p.Price <= maxPrice.Value);
@@ -230,7 +334,6 @@ public class ProductService : IProductService
             query = query.Where(p => p.Name.ToLower().Contains(s));
         }
 
-        // sort
         query = sort switch
         {
             "popular" => query.OrderByDescending(p => p.TotalSold),
