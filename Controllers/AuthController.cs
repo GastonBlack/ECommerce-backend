@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace ECommerceAPI.Controllers;
 
@@ -48,6 +49,7 @@ public class AuthController : ControllerBase
     // REGISTER
     // =====================
     [HttpPost("register")]
+    [EnableRateLimiting("auth")]
     public async Task<IActionResult> Register(UserRegisterDto dto)
     {
         try
@@ -68,6 +70,7 @@ public class AuthController : ControllerBase
     // LOGIN
     // =====================
     [HttpPost("login")]
+    [EnableRateLimiting("auth")]
     public async Task<IActionResult> Login(UserLoginDto dto)
     {
         try

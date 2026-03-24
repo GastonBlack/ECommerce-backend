@@ -2,6 +2,7 @@ using ECommerceAPI.Extensions;
 using ECommerceAPI.Services.Payments;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace ECommerceAPI.Controllers;
 
@@ -19,6 +20,7 @@ public class PaymentsController : ControllerBase
     // =====================================================
 
     [HttpPost("create-preference")]
+    [EnableRateLimiting("payment")]
     public async Task<IActionResult> CreatePreference()
     {
         try

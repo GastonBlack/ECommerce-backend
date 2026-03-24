@@ -3,6 +3,7 @@ using ECommerceAPI.Extensions;
 using ECommerceAPI.Services.Users;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace ECommerceAPI.Controllers;
 
@@ -20,6 +21,7 @@ public class UserController : ControllerBase
     // ==================================================
 
     [HttpGet("me")]
+    [EnableRateLimiting("seeProfile")]
     public async Task<IActionResult> GetMe()
     {
         var userId = User.GetUserId();
@@ -29,6 +31,7 @@ public class UserController : ControllerBase
     }
 
     [HttpPut("me")]
+    [EnableRateLimiting("updateProfile")]
     public async Task<IActionResult> UpdateMe([FromBody] UserUpdateMeDto dto)
     {
         if (dto == null) return BadRequest(new { error = "Body inválido" });
@@ -41,6 +44,7 @@ public class UserController : ControllerBase
     }
 
     [HttpPut("me/password")]
+    [EnableRateLimiting("updateProfile")]
     public async Task<IActionResult> ChangePassword([FromBody] UserChangePasswordDto dto)
     {
         if (dto == null) return BadRequest(new { error = "Body Inválido" });
@@ -51,7 +55,4 @@ public class UserController : ControllerBase
 
         return Ok(new { message = "Contraseña actualizada." });
     }
-
-
-
 }

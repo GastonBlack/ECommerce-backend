@@ -3,6 +3,7 @@ using ECommerceAPI.Services.ImageUpload;
 using ECommerceAPI.Services.Products;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace ECommerceAPI.Controllers;
 
@@ -21,6 +22,7 @@ public class ProductController : ControllerBase
 
     [HttpGet]
     [AllowAnonymous]
+    [EnableRateLimiting("catalog")]
     public async Task<IActionResult> GetAll(
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 25,
