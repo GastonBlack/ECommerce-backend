@@ -31,15 +31,39 @@ public class PaymentService : IPaymentService
         if (cartItems.Count == 0)
             throw new InvalidOperationException("El carrito está vacío.");
 
-        var order = new Order
-        {
-            UserId = userId,
-            TotalAmount = cartItems.Sum(i => i.Product.Price * i.Quantity),
-            Status = OrderStatuses.Pending,
-        };
+        var totalAmount = cartItems.Sum(i => i.Product.Price * i.Quantity);
 
-        _db.Orders.Add(order);
-        await _db.SaveChangesAsync();
+        // Reutiliza una orden pendiente existente del usuario si todavía no fue pagada.
+        var order = await _db.Orders
+            .Include(o => o.Items)
+            .FirstOrDefaultAsync(o =>
+                o.UserId == userId &&
+                o.Status == OrderStatuses.Pending &&
+                o.MercadoPagoPaymentId == null);
+
+        if (order == null)
+        {
+            order = new Order
+            {
+                UserId = userId,
+                TotalAmount = totalAmount,
+                Status = OrderStatuses.Pending,
+            };
+
+            _db.Orders.Add(order);
+            await _db.SaveChangesAsync();
+        }
+        else
+        {
+            // Si ya existía una orden pendiente, la actualizamos según el carrito actual.
+            order.TotalAmount = totalAmount;
+
+            if (order.Items.Count > 0)
+            {
+                _db.OrderItems.RemoveRange(order.Items);
+                await _db.SaveChangesAsync();
+            }
+        }
 
         var orderItems = cartItems.Select(i => new OrderItem
         {
@@ -53,6 +77,8 @@ public class PaymentService : IPaymentService
         await _db.SaveChangesAsync();
 
         MercadoPagoConfig.AccessToken = _mp.Value.AccessToken;
+
+        var frontendBaseUrl = _mp.Value.FrontendBaseUrl;
 
         var preferenceRequest = new PreferenceRequest
         {
@@ -68,9 +94,9 @@ public class PaymentService : IPaymentService
 
             BackUrls = new PreferenceBackUrlsRequest
             {
-                Success = "https://ecommerce-git-main-gastonreds-projects.vercel.app/checkout?status=success",
-                Failure = "https://ecommerce-git-main-gastonreds-projects.vercel.app/checkout?status=failure",
-                Pending = "https://ecommerce-git-main-gastonreds-projects.vercel.app/checkout?status=pending",
+                Success = $"{frontendBaseUrl}/checkout?status=success&orderId={order.Id}",
+                Failure = $"{frontendBaseUrl}/checkout?status=failure&orderId={order.Id}",
+                Pending = $"{frontendBaseUrl}/checkout?status=pending&orderId={order.Id}",
             },
 
             AutoReturn = "approved",
@@ -133,6 +159,7 @@ public class PaymentService : IPaymentService
         if (order == null)
             return;
 
+        // Si ya avanzó más allá del pago, no permitir que el webhook lo pise.
         if (order.Status == OrderStatuses.Paid ||
             order.Status == OrderStatuses.Preparing ||
             order.Status == OrderStatuses.Shipped ||
