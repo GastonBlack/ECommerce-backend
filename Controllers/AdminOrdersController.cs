@@ -10,23 +10,32 @@ namespace ECommerceAPI.Controllers;
 [Authorize(Roles = "Admin")]
 public class AdminOrdersController : ControllerBase
 {
-    // ======================================================
     private readonly IAdminOrderService _service;
+
     public AdminOrdersController(IAdminOrderService service)
     {
         _service = service;
     }
-    // ======================================================
 
     [HttpGet]
     public async Task<IActionResult> GetAll(
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 10,
         [FromQuery] string? status = null,
-        [FromQuery] string? search = null
+        [FromQuery] string? search = null,
+        [FromQuery] DateTime? dateFrom = null,
+        [FromQuery] DateTime? dateTo = null
     )
     {
-        var result = await _service.GetAllPagedAsync(page, pageSize, status, search);
+        var result = await _service.GetAllPagedAsync(
+            page,
+            pageSize,
+            status,
+            search,
+            dateFrom,
+            dateTo
+        );
+
         return Ok(result);
     }
 

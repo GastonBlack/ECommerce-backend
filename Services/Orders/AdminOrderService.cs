@@ -21,7 +21,9 @@ public class AdminOrderService : IAdminOrderService
         int page,
         int pageSize,
         string? status = null,
-        string? search = null
+        string? search = null,
+        DateTime? dateFrom = null,
+        DateTime? dateTo = null
     )
     {
         page = page < 1 ? 1 : page;
@@ -43,10 +45,22 @@ public class AdminOrderService : IAdminOrderService
             var term = search.Trim().ToLower();
 
             query = query.Where(o =>
+                o.Id.ToString().Contains(term) ||
                 o.User.FullName.ToLower().Contains(term) ||
-                o.User.Email.ToLower().Contains(term) ||
-                o.Id.ToString().Contains(term)
+                o.User.Email.ToLower().Contains(term)
             );
+        }
+
+        if (dateFrom.HasValue)
+        {
+            var fromUtc = dateFrom.Value.Date.ToUniversalTime();
+            query = query.Where(o => o.CreatedAt >= fromUtc);
+        }
+
+        if (dateTo.HasValue)
+        {
+            var toUtcExclusive = dateTo.Value.Date.AddDays(1).ToUniversalTime();
+            query = query.Where(o => o.CreatedAt < toUtcExclusive);
         }
 
         query = query.OrderByDescending(o => o.CreatedAt);
