@@ -8,7 +8,6 @@ using ECommerceAPI.Services.ImageUpload;
 using System.Security.Claims;
 using System.IdentityModel.Tokens.Jwt;
 using System.Threading.RateLimiting;
-using Microsoft.AspNetCore.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -78,6 +77,21 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             }
         };
     });
+
+// =====================================
+// CSRF
+// =====================================
+builder.Services.AddAntiforgery(options =>
+{
+    options.HeaderName = "X-XSRF-TOKEN";
+
+    // Cookie INTERNA de .NET
+    options.Cookie.Name = ".AspNetCore.Antiforgery";
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SameSite = SameSiteMode.Lax;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+    options.SuppressXFrameOptionsHeader = false;
+});
 
 // =====================================
 // RATE LIMITING
@@ -194,7 +208,12 @@ builder.Services.AddScoped<ECommerceAPI.Services.Payments.IPaymentService, EComm
 // =====================================
 // CONTROLLERS + SWAGGER
 // =====================================
-builder.Services.AddControllers();
+builder.Services.AddControllersWithViews(options =>
+{
+    // Esto aplica la validación a TODOS los POST, PUT, DELETE, etc.
+    // Pero ignora automáticamente los GET.
+    options.Filters.Add(new Microsoft.AspNetCore.Mvc.AutoValidateAntiforgeryTokenAttribute());
+});
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddMemoryCache();
@@ -215,6 +234,8 @@ app.UseRateLimiter();
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+app.UseAntiforgery();
 
 app.MapControllers();
 

@@ -42,6 +42,7 @@ public class PaymentsController : ControllerBase
 
     [AllowAnonymous]
     [HttpPost("webhook")]
+    [IgnoreAntiforgeryToken]
     public async Task<IActionResult> Webhook(
         [FromQuery] string? type,
         [FromQuery(Name = "data.id")] string? dataId,

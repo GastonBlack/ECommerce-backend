@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.Antiforgery;
 
 namespace ECommerceAPI.Controllers;
 
@@ -15,9 +16,11 @@ public class AuthController : ControllerBase
 {
     // ==============================================
     private readonly IAuthService _authService;
-    public AuthController(IAuthService authService)
+    private readonly IAntiforgery _antiforgery;
+    public AuthController(IAuthService authService, IAntiforgery antiforgery)
     {
         _authService = authService;
+        _antiforgery = antiforgery;
     }
 
     private CookieOptions BuildTokenCookieOptions()
@@ -25,8 +28,8 @@ public class AuthController : ControllerBase
         return new CookieOptions
         {
             HttpOnly = true,
-            Secure = true,
-            SameSite = SameSiteMode.None,
+            Secure = HttpContext.Request.IsHttps,
+            SameSite = SameSiteMode.Lax,
             Expires = DateTimeOffset.UtcNow.AddDays(7),
             Path = "/"
         };
@@ -37,11 +40,36 @@ public class AuthController : ControllerBase
         return new CookieOptions
         {
             HttpOnly = true,
-            Secure = true,
-            SameSite = SameSiteMode.None,
+            Secure = HttpContext.Request.IsHttps,
+            SameSite = SameSiteMode.Lax,
             Expires = DateTimeOffset.UtcNow.AddDays(7),
             Path = "/"
         };
+    }
+
+    // =====================
+    // CSRF
+    // =====================
+    private void RefreshCsrfToken()
+    {
+        var tokens = _antiforgery.GetAndStoreTokens(HttpContext);
+
+        Response.Cookies.Append("XSRF-TOKEN", tokens.RequestToken!,
+            new CookieOptions
+            {
+                HttpOnly = false, // Para que Front la lea.
+                Secure = HttpContext.Request.IsHttps,
+                SameSite = SameSiteMode.Lax,
+                Path = "/"
+            });
+    }
+
+    [HttpGet("csrf")]
+    [AllowAnonymous]
+    public IActionResult GetCsrfToken()
+    {
+        RefreshCsrfToken();
+        return Ok(new { message = "CSRF token generado." });
     }
     // ==============================================
 
@@ -57,6 +85,8 @@ public class AuthController : ControllerBase
             var result = await _authService.RegisterAsync(dto);
             Response.Cookies.Append("token", result.Token, BuildTokenCookieOptions());
             Response.Cookies.Append("userName", result.FullName, BuildUserCookieOptions());
+
+            RefreshCsrfToken();
 
             return Ok(new { fullName = result.FullName, email = result.Email, userId = result.UserId });
         }
@@ -79,6 +109,8 @@ public class AuthController : ControllerBase
 
             Response.Cookies.Append("token", result.Token, BuildTokenCookieOptions());
             Response.Cookies.Append("userName", result.FullName, BuildUserCookieOptions());
+
+            RefreshCsrfToken();
 
             return Ok(new { fullName = result.FullName, email = result.Email, userId = result.UserId });
         }
@@ -104,21 +136,43 @@ public class AuthController : ControllerBase
         if (user == null)
             return Unauthorized();
 
+        RefreshCsrfToken();
+
         return Ok(user);
     }
 
     [HttpPost("logout")]
     public IActionResult Logout()
     {
-        var tokenOptions = BuildTokenCookieOptions();
-        var userOptions = BuildUserCookieOptions();
+        // Opciones para borrar cookies.
+        var deleteOptions = new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = HttpContext.Request.IsHttps,
+            SameSite = SameSiteMode.Lax,
+            Expires = DateTimeOffset.UtcNow.AddDays(-1),
+            Path = "/"
+        };
 
-        tokenOptions.Expires = DateTimeOffset.UtcNow.AddDays(-1);
-        userOptions.Expires = DateTimeOffset.UtcNow.AddDays(-1);
+        // Borrar JWT y nombre de usuario
+        Response.Cookies.Append("token", "", deleteOptions);
+        Response.Cookies.Append("userName", "", deleteOptions);
 
-        Response.Cookies.Append("token", "", tokenOptions);
-        Response.Cookies.Append("userName", "", userOptions);
+        // Borrar Cookies de Antiforgery
+        // Borra la interna de .NET
+        Response.Cookies.Append(".AspNetCore.Antiforgery", "", deleteOptions);
 
-        return Ok();
+        // Borra la que lee Axios (HttpOnly falso).
+        var deleteOptionsAxios = new CookieOptions
+        {
+            HttpOnly = false,
+            Secure = HttpContext.Request.IsHttps,
+            SameSite = SameSiteMode.Lax,
+            Expires = DateTimeOffset.UtcNow.AddDays(-1),
+            Path = "/"
+        };
+        Response.Cookies.Append("XSRF-TOKEN", "", deleteOptionsAxios);
+
+        return Ok(new { message = "Logout exitoso y tokens limpiados." });
     }
 }
