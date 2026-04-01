@@ -1,15 +1,29 @@
 using ECommerceAPI.Data;
 using ECommerceAPI.Settings;
+using ECommerceAPI.Services.ImageUpload;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.Mvc;
 using System.Text;
-using ECommerceAPI.Services.ImageUpload;
 using System.Security.Claims;
 using System.IdentityModel.Tokens.Jwt;
 using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// =====================================
+// FORWARDED HEADERS (PARA RENDER)
+// =====================================
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders =
+        ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
 
 // =====================================
 // DATABASE
@@ -25,7 +39,9 @@ builder.Services.Configure<JwtSettings>(
     builder.Configuration.GetSection("Jwt")
 );
 
-var jwtSettings = builder.Configuration.GetSection("Jwt").Get<JwtSettings>();
+var jwtSettings = builder.Configuration.GetSection("Jwt").Get<JwtSettings>()
+    ?? throw new InvalidOperationException("No se pudo cargar la configuración JWT.");
+
 var keyBytes = Encoding.UTF8.GetBytes(jwtSettings.Key);
 
 // =====================================
@@ -35,10 +51,14 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins("http://localhost:3000", "https://ecommerce-git-main-gastonreds-projects.vercel.app")
-              .AllowAnyHeader()
-              .AllowAnyMethod()
-              .AllowCredentials();
+        policy
+            .WithOrigins(
+                "http://localhost:3000",
+                "https://ecommerce-git-main-gastonreds-projects.vercel.app"
+            )
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials();
     });
 });
 
@@ -86,6 +106,7 @@ builder.Services.AddAntiforgery(options =>
     options.HeaderName = "X-XSRF-TOKEN";
     options.Cookie.Name = ".AspNetCore.Antiforgery";
     options.Cookie.HttpOnly = true;
+    options.SuppressXFrameOptionsHeader = false;
 
     if (builder.Environment.IsDevelopment())
     {
@@ -97,9 +118,6 @@ builder.Services.AddAntiforgery(options =>
         options.Cookie.SameSite = SameSiteMode.None;
         options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
     }
-    Console.WriteLine(builder.Environment.IsDevelopment());
-
-    options.SuppressXFrameOptionsHeader = false;
 });
 
 // =====================================
@@ -219,10 +237,10 @@ builder.Services.AddScoped<ECommerceAPI.Services.Payments.IPaymentService, EComm
 // =====================================
 builder.Services.AddControllersWithViews(options =>
 {
-    // Esto aplica la validación a TODOS los POST, PUT, DELETE, etc.
-    // Pero ignora automáticamente los GET.
-    options.Filters.Add(new Microsoft.AspNetCore.Mvc.AutoValidateAntiforgeryTokenAttribute());
+    // Valida antiforgery automáticamente en POST, PUT, PATCH, DELETE.
+    options.Filters.Add(new AutoValidateAntiforgeryTokenAttribute());
 });
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddMemoryCache();
@@ -232,10 +250,16 @@ builder.Services.AddMemoryCache();
 // =====================================
 var app = builder.Build();
 
+app.UseForwardedHeaders();
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+}
+else
+{
+    app.UseHttpsRedirection();
 }
 
 app.UseCors("AllowFrontend");
@@ -249,16 +273,14 @@ app.UseAntiforgery();
 app.MapControllers();
 
 // =====================================
-// AÑADIR PRODUCTOS POR DEFALT
+// MIGRACIONES + SEED
 // =====================================
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-    // Debug
-    // await context.Database.EnsureDeletedAsync();
-
     await context.Database.MigrateAsync();
     await DbDefaultProducts.SeedAsync(context);
 }
+
 app.Run();
