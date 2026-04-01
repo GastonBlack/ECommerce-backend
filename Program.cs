@@ -108,7 +108,9 @@ builder.Services.AddAntiforgery(options =>
     options.Cookie.HttpOnly = true;
     options.SuppressXFrameOptionsHeader = false;
 
-    if (builder.Environment.IsDevelopment())
+    var appEnv = Environment.GetEnvironmentVariable("APP_ENV");
+
+    if (appEnv == "development")
     {
         options.Cookie.SameSite = SameSiteMode.Lax;
         options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
@@ -267,8 +269,6 @@ app.UseRateLimiter();
 
 app.UseAuthentication();
 app.UseAuthorization();
-
-app.UseAntiforgery();
 
 app.MapControllers();
 

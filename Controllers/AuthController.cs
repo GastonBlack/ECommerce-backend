@@ -26,8 +26,8 @@ public class AuthController : ControllerBase
 
     private bool IsDevelopment()
     {
-        var env = HttpContext.RequestServices.GetRequiredService<IWebHostEnvironment>();
-        return env.IsDevelopment();
+        var env = Environment.GetEnvironmentVariable("APP_ENV");
+        return env == "development";
     }
 
     private CookieOptions BuildTokenCookieOptions()
