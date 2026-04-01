@@ -25,11 +25,14 @@ public class AuthController : ControllerBase
 
     private CookieOptions BuildTokenCookieOptions()
     {
+        var env = HttpContext.RequestServices.GetRequiredService<IWebHostEnvironment>();
+        var isDev = env.IsDevelopment();
+
         return new CookieOptions
         {
             HttpOnly = true,
-            Secure = HttpContext.Request.IsHttps,
-            SameSite = SameSiteMode.Lax,
+            Secure = !isDev,
+            SameSite = isDev ? SameSiteMode.Lax : SameSiteMode.None,
             Expires = DateTimeOffset.UtcNow.AddDays(7),
             Path = "/"
         };
@@ -37,11 +40,14 @@ public class AuthController : ControllerBase
 
     private CookieOptions BuildUserCookieOptions()
     {
+        var env = HttpContext.RequestServices.GetRequiredService<IWebHostEnvironment>();
+        var isDev = env.IsDevelopment();
+
         return new CookieOptions
         {
             HttpOnly = true,
-            Secure = HttpContext.Request.IsHttps,
-            SameSite = SameSiteMode.Lax,
+            Secure = !isDev,
+            SameSite = isDev ? SameSiteMode.Lax : SameSiteMode.None,
             Expires = DateTimeOffset.UtcNow.AddDays(7),
             Path = "/"
         };
@@ -52,16 +58,18 @@ public class AuthController : ControllerBase
     // =====================
     private void RefreshCsrfToken()
     {
+        var env = HttpContext.RequestServices.GetRequiredService<IWebHostEnvironment>();
+        var isDev = env.IsDevelopment();
+
         var tokens = _antiforgery.GetAndStoreTokens(HttpContext);
 
-        Response.Cookies.Append("XSRF-TOKEN", tokens.RequestToken!,
-            new CookieOptions
-            {
-                HttpOnly = false, // Para que Front la lea.
-                Secure = HttpContext.Request.IsHttps,
-                SameSite = SameSiteMode.Lax,
-                Path = "/"
-            });
+        Response.Cookies.Append("XSRF-TOKEN", tokens.RequestToken!, new CookieOptions
+        {
+            HttpOnly = false,
+            Secure = !isDev,
+            SameSite = isDev ? SameSiteMode.Lax : SameSiteMode.None,
+            Path = "/"
+        });
     }
 
     [HttpGet("csrf")]
