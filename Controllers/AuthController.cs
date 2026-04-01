@@ -27,7 +27,7 @@ public class AuthController : ControllerBase
     private bool IsDevelopment()
     {
         var env = Environment.GetEnvironmentVariable("APP_ENV");
-        return env == "development";
+        return string.Equals(env, "development", StringComparison.OrdinalIgnoreCase);
     }
 
     private CookieOptions BuildTokenCookieOptions()
@@ -58,36 +58,18 @@ public class AuthController : ControllerBase
         };
     }
 
-    private CookieOptions BuildXsrfCookieOptions()
-    {
-        var isDev = IsDevelopment();
-
-        return new CookieOptions
-        {
-            HttpOnly = false,
-            Secure = !isDev,
-            SameSite = isDev ? SameSiteMode.Lax : SameSiteMode.None,
-            Path = "/"
-        };
-    }
-
-    private void RefreshCsrfToken()
+    private string GenerateCsrfToken()
     {
         var tokens = _antiforgery.GetAndStoreTokens(HttpContext);
-
-        Response.Cookies.Append(
-            "XSRF-TOKEN",
-            tokens.RequestToken!,
-            BuildXsrfCookieOptions()
-        );
+        return tokens.RequestToken!;
     }
 
     [HttpGet("csrf")]
     [AllowAnonymous]
     public IActionResult GetCsrfToken()
     {
-        RefreshCsrfToken();
-        return Ok(new { message = "CSRF token generado." });
+        var csrfToken = GenerateCsrfToken();
+        return Ok(new { csrfToken });
     }
     // ==============================================
     
@@ -172,19 +154,9 @@ public class AuthController : ControllerBase
             Path = "/"
         };
 
-        var deleteReadableCookie = new CookieOptions
-        {
-            HttpOnly = false,
-            Secure = !isDev,
-            SameSite = isDev ? SameSiteMode.Lax : SameSiteMode.None,
-            Expires = DateTimeOffset.UtcNow.AddDays(-1),
-            Path = "/"
-        };
-
         Response.Cookies.Append("token", "", deleteHttpOnlyCookie);
         Response.Cookies.Append("userName", "", deleteHttpOnlyCookie);
         Response.Cookies.Append(".AspNetCore.Antiforgery", "", deleteHttpOnlyCookie);
-        Response.Cookies.Append("XSRF-TOKEN", "", deleteReadableCookie);
 
         return Ok(new { message = "Logout exitoso y tokens limpiados." });
     }
