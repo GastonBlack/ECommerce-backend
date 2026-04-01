@@ -10,6 +10,7 @@ using System.Text;
 using System.Security.Claims;
 using System.IdentityModel.Tokens.Jwt;
 using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.DataProtection;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -121,6 +122,8 @@ builder.Services.AddAntiforgery(options =>
         options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
     }
 });
+builder.Services.AddDataProtection()
+    .SetApplicationName("ECommerceAPI");
 
 // =====================================
 // RATE LIMITING
@@ -251,6 +254,14 @@ builder.Services.AddMemoryCache();
 // APP MIDDLEWARE
 // =====================================
 var app = builder.Build();
+
+// Forzar esquema HTTPS para que las cookies no sean rechazadas por el navegador.
+app.Use((context, next) =>
+{
+    context.Request.Scheme = "https";
+    return next();
+});
+
 
 app.UseForwardedHeaders();
 
