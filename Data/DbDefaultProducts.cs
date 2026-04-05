@@ -1,53 +1,80 @@
-using ECommerceAPI.Data;
+
+using BCrypt.Net;
 using ECommerceAPI.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace ECommerceAPI.Data;
 
-public static class DbDefaultProducts // Static porque solo se necesita instanciar una vez.
+public static class DbDefaultProducts
 {
     public static async Task SeedAsync(AppDbContext context)
     {
-        // Default Admin User.
-        if (!await context.Users.AnyAsync(u => u.Rol == "Admin"))
+        await SeedAdminAsync(context);
+        await SeedCategoriesAsync(context);
+        await SeedProductsAsync(context);
+        await SeedTestUsersAndOrdersAsync(context);
+    }
+
+    private static async Task SeedAdminAsync(AppDbContext context)
+    {
+        var adminExists = await context.Users.AnyAsync(u => u.Rol == "Admin");
+        if (adminExists) return;
+
+        var admin = new User
         {
-            var adminEmail = "admin@ecommerce.com";
-            var adminPassword = "Admin123"; // TODO: Ponerlo en variables de entorno.
+            FullName = "Admin Principal",
+            Email = "admin@test.com",
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin1234"),
+            Rol = "Admin",
+            Address = "Oficina Central",
+            Phone = "099000000",
+            CreatedAt = DateTime.UtcNow
+        };
 
-            var admin = new User
-            {
-                FullName = "Admin",
-                Email = adminEmail,
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword(adminPassword),
-                Rol = "Admin"
-            };
+        context.Users.Add(admin);
+        await context.SaveChangesAsync();
+    }
 
-            context.Users.Add(admin);
-            await context.SaveChangesAsync();
-        }
+    private static async Task SeedCategoriesAsync(AppDbContext context)
+    {
+        var categoryNames = new List<string>
+        {
+            "Auriculares",
+            "Consolas",
+            "Celulares",
+            "Graficas"
+        };
 
-        // Categorias por defecto.
-        var defaultNames = new[] { "Auriculares", "Consolas", "Celulares", "Graficas" };
-        foreach (var name in defaultNames)
+        foreach (var name in categoryNames)
         {
             var exists = await context.Categories.AnyAsync(c => c.Name == name);
             if (!exists)
-                context.Categories.Add(new Category { Name = name });
+            {
+                context.Categories.Add(new Category
+                {
+                    Name = name
+                });
+            }
         }
+
         await context.SaveChangesAsync();
+    }
+
+    private static async Task SeedProductsAsync(AppDbContext context)
+    {
+        // Si ya hay productos, no hace nada.
+        if (await context.Products.AnyAsync())
+            return;
 
         var auricularesId = await context.Categories.Where(c => c.Name == "Auriculares").Select(c => c.Id).FirstOrDefaultAsync();
         var consolasId = await context.Categories.Where(c => c.Name == "Consolas").Select(c => c.Id).FirstOrDefaultAsync();
         var celularesId = await context.Categories.Where(c => c.Name == "Celulares").Select(c => c.Id).FirstOrDefaultAsync();
         var graficasId = await context.Categories.Where(c => c.Name == "Graficas").Select(c => c.Id).FirstOrDefaultAsync();
 
-        if (auricularesId == 0 || consolasId == 0 || consolasId == 0 || graficasId == 0)
+        if (auricularesId == 0 || consolasId == 0 || celularesId == 0 || graficasId == 0)
             throw new Exception("No se pudieron crear/obtener las categorías por defecto..");
 
-        // Productos por default.
-        if (!await context.Products.AnyAsync())
-        {
-            var products = new List<Product>
+        var products = new List<Product>
             {
                 new Product {
                     Name = "Auriculares Logitech Audio H390 H390 negro",
@@ -672,8 +699,164 @@ public static class DbDefaultProducts // Static porque solo se necesita instanci
                 },
             };
 
-            context.Products.AddRange(products);
-            await context.SaveChangesAsync();
+        context.Products.AddRange(products);
+        await context.SaveChangesAsync();
+    }
+
+    private static async Task SeedTestUsersAndOrdersAsync(AppDbContext context)
+    {
+        // Si ya hay órdenes, evitamos duplicar seed
+        if (await context.Orders.AnyAsync())
+            return;
+
+        // Necesitamos productos existentes para crear órdenes
+        var products = await context.Products.ToListAsync();
+        if (products.Count == 0)
+            return;
+
+        var testPasswordHash = BCrypt.Net.BCrypt.HashPassword("Test1234");
+
+        var seedUsers = new List<User>
+        {
+            new User
+            {
+                FullName = "Juan Pérez",
+                Email = "juan@test.com",
+                PasswordHash = testPasswordHash,
+                Rol = "User",
+                Address = "Av. Italia 1234",
+                Phone = "099111111",
+                CreatedAt = DateTime.UtcNow.AddDays(-25)
+            },
+            new User
+            {
+                FullName = "María Gómez",
+                Email = "maria@test.com",
+                PasswordHash = testPasswordHash,
+                Rol = "User",
+                Address = "18 de Julio 456",
+                Phone = "099222222",
+                CreatedAt = DateTime.UtcNow.AddDays(-22)
+            },
+            new User
+            {
+                FullName = "Lucas Rodríguez",
+                Email = "lucas@test.com",
+                PasswordHash = testPasswordHash,
+                Rol = "User",
+                Address = "Bvar. Artigas 789",
+                Phone = "099333333",
+                CreatedAt = DateTime.UtcNow.AddDays(-18)
+            },
+            new User
+            {
+                FullName = "Ana Fernández",
+                Email = "ana@test.com",
+                PasswordHash = testPasswordHash,
+                Rol = "User",
+                Address = "Rambla 1010",
+                Phone = "099444444",
+                CreatedAt = DateTime.UtcNow.AddDays(-15)
+            }
+        };
+
+        foreach (var user in seedUsers)
+        {
+            var exists = await context.Users.AnyAsync(u => u.Email == user.Email);
+            if (!exists)
+            {
+                context.Users.Add(user);
+            }
         }
+
+        await context.SaveChangesAsync();
+
+        var users = await context.Users
+            .Where(u =>
+                u.Email == "juan@test.com" ||
+                u.Email == "maria@test.com" ||
+                u.Email == "lucas@test.com" ||
+                u.Email == "ana@test.com")
+            .ToListAsync();
+
+        if (users.Count == 0)
+            return;
+
+        var rng = new Random();
+
+        var possibleStatuses = new[]
+        {
+            OrderStatuses.Pending,
+            OrderStatuses.Paid,
+            OrderStatuses.Preparing,
+            OrderStatuses.Shipped,
+            OrderStatuses.Delivered,
+            OrderStatuses.Cancelled
+        };
+
+        var ordersToAdd = new List<Order>();
+
+        for (int i = 0; i < 24; i++)
+        {
+            var user = users[rng.Next(users.Count)];
+            var status = possibleStatuses[rng.Next(possibleStatuses.Length)];
+
+            var createdAt = DateTime.UtcNow
+                .AddDays(-rng.Next(1, 30))
+                .AddHours(-rng.Next(0, 23))
+                .AddMinutes(-rng.Next(0, 59));
+
+            var selectedProducts = products
+                .OrderBy(_ => Guid.NewGuid())
+                .Take(rng.Next(1, Math.Min(5, products.Count + 1)))
+                .ToList();
+
+            var items = new List<OrderItem>();
+            decimal total = 0;
+
+            foreach (var product in selectedProducts)
+            {
+                var quantity = rng.Next(1, 4);
+                var price = product.Price;
+
+                items.Add(new OrderItem
+                {
+                    ProductId = product.Id,
+                    Quantity = quantity,
+                    PriceAtPurchase = price
+                });
+
+                total += price * quantity;
+
+                // Solo contar ventas si la orden avanzó de verdad
+                if (status is not OrderStatuses.Cancelled and not OrderStatuses.Pending)
+                {
+                    product.TotalSold += quantity;
+                }
+            }
+
+            var order = new Order
+            {
+                UserId = user.Id,
+                CreatedAt = createdAt,
+                Status = status,
+                TotalAmount = total,
+                Items = items,
+                MercadoPagoPreferenceId = $"TEST-PREF-{Guid.NewGuid():N}"[..18]
+            };
+
+            if (status is OrderStatuses.Paid
+                or OrderStatuses.Preparing
+                or OrderStatuses.Shipped
+                or OrderStatuses.Delivered)
+            {
+                order.MercadoPagoPaymentId = Math.Abs(Random.Shared.NextInt64(1000000000, 9999999999));
+            }
+
+            ordersToAdd.Add(order);
+        }
+
+        context.Orders.AddRange(ordersToAdd);
+        await context.SaveChangesAsync();
     }
 }
