@@ -9,10 +9,12 @@ public class Order
     public User User { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? ReservationExpiresAt { get; set; }
+
     public decimal TotalAmount { get; set; }
 
     // Mercado Pago.
-    public string Status { get; set; } = OrderStatuses.Pending; // Pending - Paid - Preparing - Shipped - Delivered - Cancelled
+    public string Status { get; set; } = OrderStatuses.AwaitingPayment; // AwaitingPayment - Paid - Preparing - Shipped - Delivered - Cancelled - Expired
     public string? MercadoPagoPreferenceId { get; set; }
     public long? MercadoPagoPaymentId { get; set; }
 

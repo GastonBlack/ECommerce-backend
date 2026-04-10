@@ -8,8 +8,9 @@ public static class OrderStatusHelper
     {
         return currentStatus switch
         {
-            OrderStatuses.Pending => newStatus == OrderStatuses.Paid
-                                  || newStatus == OrderStatuses.Cancelled,
+            OrderStatuses.AwaitingPayment => newStatus == OrderStatuses.Paid
+                                         || newStatus == OrderStatuses.Cancelled
+                                         || newStatus == OrderStatuses.Expired,
 
             OrderStatuses.Paid => newStatus == OrderStatuses.Preparing
                                || newStatus == OrderStatuses.Cancelled,
@@ -21,6 +22,7 @@ public static class OrderStatusHelper
 
             OrderStatuses.Delivered => false,
             OrderStatuses.Cancelled => false,
+            OrderStatuses.Expired => false,
 
             _ => false
         };

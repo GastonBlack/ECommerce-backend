@@ -9,9 +9,10 @@ public class Product
     public decimal Price { get; set; }
 
     public int Stock { get; set; }
+    public int ReservedStock { get; set; } = 0;
     public int TotalSold { get; set; } = 0;
 
-    public string ImageUrl { get; set; } = null!;       // Cada producto tendrá su propia imagen.
+    public string ImageUrl { get; set; } = null!;
 
     // Relación con Categoría.
     public int CategoryId { get; set; }

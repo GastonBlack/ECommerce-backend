@@ -33,30 +33,48 @@ public class CartService : ICartService
         }).ToList();
     }
 
-
     public async Task<CartItemResponseDto> AddToCartAsync(int userId, CartAddDto dto)
     {
-        // Si ya existe el item en el carrito se le incrementa la cantidad
-        var existing = await _db.CartItems.FirstOrDefaultAsync(c => c.UserId == userId && c.ProductId == dto.ProductId);
+        if (dto.Quantity <= 0)
+            throw new ArgumentException("La cantidad debe ser mayor a 0.");
+
+        var product = await _db.Products.FindAsync(dto.ProductId);
+
+        if (product == null)
+            throw new KeyNotFoundException("Producto no encontrado.");
+
+        var availableStock = product.Stock - product.ReservedStock;
+
+        var existing = await _db.CartItems
+            .FirstOrDefaultAsync(c => c.UserId == userId && c.ProductId == dto.ProductId);
+
+        var finalQuantity = existing != null
+            ? existing.Quantity + dto.Quantity
+            : dto.Quantity;
+
+        if (finalQuantity > availableStock)
+        {
+            throw new InvalidOperationException(
+                $"No hay stock suficiente. Stock disponible: {availableStock}."
+            );
+        }
 
         if (existing != null)
         {
-            existing.Quantity += dto.Quantity;
+            existing.Quantity = finalQuantity;
             await _db.SaveChangesAsync();
 
-            var item = await _db.Products.FindAsync(existing.ProductId);
             return new CartItemResponseDto
             {
                 CartItemId = existing.Id,
                 ProductId = existing.ProductId,
-                ProductName = item!.Name,
-                ImageUrl = item.ImageUrl,
-                Price = item.Price,
+                ProductName = product.Name,
+                ImageUrl = product.ImageUrl,
+                Price = product.Price,
                 Quantity = existing.Quantity
             };
         }
 
-        // Si no existe, crea uno nuevo.
         var newItem = new CartItem
         {
             UserId = userId,
@@ -67,12 +85,11 @@ public class CartService : ICartService
         _db.CartItems.Add(newItem);
         await _db.SaveChangesAsync();
 
-        var product = await _db.Products.FindAsync(dto.ProductId);
         return new CartItemResponseDto
         {
             CartItemId = newItem.Id,
             ProductId = newItem.ProductId,
-            ProductName = product!.Name,
+            ProductName = product.Name,
             ImageUrl = product.ImageUrl,
             Price = product.Price,
             Quantity = newItem.Quantity
@@ -82,12 +99,24 @@ public class CartService : ICartService
 
     public async Task<CartItemResponseDto?> UpdateQuantityAsync(int cartItemId, CartUpdateDto dto, int userId)
     {
+        if (dto.Quantity <= 0)
+            throw new ArgumentException("La cantidad debe ser mayor a 0.");
+
         var item = await _db.CartItems
             .Include(c => c.Product)
             .FirstOrDefaultAsync(c => c.Id == cartItemId && c.UserId == userId);
 
         if (item == null)
             return null;
+
+        var availableStock = item.Product.Stock - item.Product.ReservedStock;
+
+        if (dto.Quantity > availableStock)
+        {
+            throw new InvalidOperationException(
+                $"No hay stock suficiente. Stock disponible: {availableStock}."
+            );
+        }
 
         item.Quantity = dto.Quantity;
         await _db.SaveChangesAsync();

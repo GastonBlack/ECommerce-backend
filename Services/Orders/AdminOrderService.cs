@@ -142,12 +142,13 @@ public class AdminOrderService : IAdminOrderService
 
         var validStatuses = new[]
         {
-            OrderStatuses.Pending,
+            OrderStatuses.AwaitingPayment,
             OrderStatuses.Paid,
             OrderStatuses.Preparing,
             OrderStatuses.Shipped,
             OrderStatuses.Delivered,
-            OrderStatuses.Cancelled
+            OrderStatuses.Cancelled,
+            OrderStatuses.Expired
         };
 
         if (!validStatuses.Contains(normalized))
@@ -174,12 +175,13 @@ public class AdminOrderService : IAdminOrderService
 
         return s switch
         {
-            "pending" => OrderStatuses.Pending,
+            "pending" => OrderStatuses.AwaitingPayment,
             "paid" => OrderStatuses.Paid,
             "preparing" => OrderStatuses.Preparing,
             "shipped" => OrderStatuses.Shipped,
             "delivered" => OrderStatuses.Delivered,
             "cancelled" => OrderStatuses.Cancelled,
+            "expired" => OrderStatuses.Expired,
             _ => status.Trim()
         };
     }

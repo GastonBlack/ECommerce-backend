@@ -3,6 +3,7 @@ using System;
 using ECommerceAPI.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace ECommerceAPI.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260410211224_AddUniqueIndexToMercadoPagoPaymentId")]
+    partial class AddUniqueIndexToMercadoPagoPaymentId
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -82,9 +85,6 @@ namespace ECommerceAPI.Migrations
                     b.Property<string>("MercadoPagoPreferenceId")
                         .HasColumnType("text");
 
-                    b.Property<DateTime?>("ReservationExpiresAt")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasColumnType("text");
@@ -99,10 +99,6 @@ namespace ECommerceAPI.Migrations
 
                     b.HasIndex("MercadoPagoPaymentId")
                         .IsUnique();
-
-                    b.HasIndex("ReservationExpiresAt");
-
-                    b.HasIndex("Status");
 
                     b.HasIndex("UserId");
 
@@ -163,9 +159,6 @@ namespace ECommerceAPI.Migrations
 
                     b.Property<decimal>("Price")
                         .HasColumnType("numeric");
-
-                    b.Property<int>("ReservedStock")
-                        .HasColumnType("integer");
 
                     b.Property<int>("Stock")
                         .HasColumnType("integer");

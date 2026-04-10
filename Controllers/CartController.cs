@@ -25,56 +25,115 @@ public class CartController : ControllerBase
     public async Task<IActionResult> GetCart()
     {
         var userId = User.GetUserId();
-
         return Ok(await _service.GetUserCartAsync(userId));
     }
 
-    // Agregar al carrito
     [HttpPost("add")]
     public async Task<IActionResult> Add([FromBody] CartAddDto dto)
     {
         if (dto == null)
             return BadRequest(new { error = "Body inválido (dto es null)." });
 
-        var userId = User.GetUserId();
-        return Ok(await _service.AddToCartAsync(userId, dto));
+        try
+        {
+            var userId = User.GetUserId();
+            return Ok(await _service.AddToCartAsync(userId, dto));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new
+            {
+                code = "INSUFFICIENT_STOCK",
+                error = ex.Message
+            });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new
+            {
+                code = "PRODUCT_NOT_FOUND",
+                error = ex.Message
+            });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new
+            {
+                code = "INVALID_QUANTITY",
+                error = ex.Message
+            });
+        }
     }
 
-    // Actualizar cantidad
     [HttpPut("update/{cartItemId}")]
     public async Task<IActionResult> Update(int cartItemId, CartUpdateDto dto)
     {
-        var userId = User.GetUserId();
+        try
+        {
+            var userId = User.GetUserId();
 
-        if (dto.Quantity <= 0)
-            return BadRequest(new { error = "La cantidad debe ser mayor a 0" });
+            var result = await _service.UpdateQuantityAsync(cartItemId, dto, userId);
+            if (result == null)
+            {
+                return NotFound(new
+                {
+                    code = "CART_ITEM_NOT_FOUND",
+                    error = "Item no encontrado."
+                });
+            }
 
-        var result = await _service.UpdateQuantityAsync(cartItemId, dto, userId);
-        if (result == null) return NotFound();
-
-        return Ok(result);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new
+            {
+                code = "INSUFFICIENT_STOCK",
+                error = ex.Message
+            });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new
+            {
+                code = "INVALID_QUANTITY",
+                error = ex.Message
+            });
+        }
     }
 
-    // Eliminar item
     [HttpDelete("remove/{cartItemId}")]
     public async Task<IActionResult> Remove(int cartItemId)
     {
         var userId = User.GetUserId();
 
         var removed = await _service.RemoveItemAsync(cartItemId, userId);
-        if (!removed) return NotFound();
+        if (!removed)
+        {
+            return NotFound(new
+            {
+                code = "CART_ITEM_NOT_FOUND",
+                error = "Item no encontrado."
+            });
+        }
 
         return Ok(new { message = "Item eliminado" });
     }
 
-    // Vaciar carrito
     [HttpDelete("clear")]
     public async Task<IActionResult> Clear()
     {
         var userId = User.GetUserId();
 
         var cleared = await _service.ClearCartAsync(userId);
-        if (!cleared) return NotFound();
+        if (!cleared)
+        {
+            return NotFound(new
+            {
+                code = "EMPTY_CART",
+                error = "El carrito ya está vacío."
+            });
+        }
 
         return Ok(new { message = "Carrito vaciado" });
     }

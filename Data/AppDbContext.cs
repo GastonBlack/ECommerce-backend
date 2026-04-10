@@ -20,34 +20,45 @@ public class AppDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
-        // ============================
-        // Category -> Products
-        // ============================
+        // Product pertenece a una Category. Evita borrar categorías con productos.
         modelBuilder.Entity<Product>()
             .HasOne(p => p.Category)
             .WithMany(c => c.Products)
             .HasForeignKey(p => p.CategoryId)
-            .OnDelete(DeleteBehavior.Restrict); // <- PARA QUE NO PUEDA BORRAR CATEGORIA SI HAY PRODUCTOS.
+            .OnDelete(DeleteBehavior.Restrict);
 
-        // Product -> CartItems
+        // CartItem referencia a Product. Evita borrar productos que estén en carritos.
         modelBuilder.Entity<CartItem>()
             .HasOne(ci => ci.Product)
             .WithMany()
             .HasForeignKey(ci => ci.ProductId)
-            .OnDelete(DeleteBehavior.Restrict); // <- PARA QUE NO PUEDA ELIMINAR PRODUCTO QUE ESTÉ EN ALGÚN CARRITO.
+            .OnDelete(DeleteBehavior.Restrict);
 
-        // OrderItem -> Product
+        // OrderItem referencia a Product. Evita borrar productos ya comprados.
         modelBuilder.Entity<OrderItem>()
             .HasOne(oi => oi.Product)
             .WithMany()
             .HasForeignKey(oi => oi.ProductId)
-            .OnDelete(DeleteBehavior.Restrict); // <- SI UN PRODUCTO YA FUE COMPRADO, NO SE PUEDE BORRAR.
+            .OnDelete(DeleteBehavior.Restrict);
 
-        // Order -> Items
+        // Order tiene muchos OrderItems. Si se borra la orden, se borran sus items.
         modelBuilder.Entity<OrderItem>()
             .HasOne(oi => oi.Order)
             .WithMany(o => o.Items)
             .HasForeignKey(oi => oi.OrderId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // Evita procesar el mismo pago más de una vez (idempotencia).
+        modelBuilder.Entity<Order>()
+            .HasIndex(o => o.MercadoPagoPaymentId)
+            .IsUnique();
+
+        // Optimiza búsquedas por estado (admin, filtros, etc).
+        modelBuilder.Entity<Order>()
+            .HasIndex(o => o.Status);
+
+        // Optimiza detección de reservas vencidas.
+        modelBuilder.Entity<Order>()
+            .HasIndex(o => o.ReservationExpiresAt);
     }
 }

@@ -253,6 +253,9 @@ builder.Services.AddScoped<ECommerceAPI.Services.Orders.IOrderService, ECommerce
 builder.Services.AddScoped<ECommerceAPI.Services.Orders.IAdminOrderService, ECommerceAPI.Services.Orders.AdminOrderService>();
 builder.Services.AddScoped<ECommerceAPI.Services.Payments.IPaymentService, ECommerceAPI.Services.Payments.PaymentService>();
 
+// Cada 1 minuto busca órdenes cuya reserva expiró, libera la reserva y marca la orden como Expired.
+builder.Services.AddHostedService<ECommerceAPI.Services.Payments.ExpiredReservationsCleanupService>();
+
 // =====================================
 // CONTROLLERS + SWAGGER
 // =====================================

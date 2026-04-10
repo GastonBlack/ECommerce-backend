@@ -12,14 +12,21 @@ namespace ECommerceAPI.Services.Payments;
 
 public class PaymentService : IPaymentService
 {
+    // ====================================================
     private readonly AppDbContext _db;
     private readonly IOptions<MercadoPagoSettings> _mp;
+    private readonly ILogger<PaymentService> _logger;
 
-    public PaymentService(AppDbContext db, IOptions<MercadoPagoSettings> mp)
+    public PaymentService(
+        AppDbContext db,
+        IOptions<MercadoPagoSettings> mp,
+        ILogger<PaymentService> logger)
     {
         _db = db;
         _mp = mp;
+        _logger = logger;
     }
+    // ====================================================
 
     public async Task<CreatePreferenceResponseDto> CreatePreferenceAsync(int userId)
     {
@@ -32,84 +39,95 @@ public class PaymentService : IPaymentService
             throw new InvalidOperationException("El carrito está vacío.");
 
         var totalAmount = cartItems.Sum(i => i.Product.Price * i.Quantity);
+        var reservationExpiresAt = DateTime.UtcNow.AddMinutes(15);  // La orden dura 15 minutos, si no paga, expira.
 
-        // Reutiliza una orden pendiente existente del usuario si todavía no fue pagada.
-        var order = await _db.Orders
-            .Include(o => o.Items)
-            .FirstOrDefaultAsync(o =>
-                o.UserId == userId &&
-                o.Status == OrderStatuses.Pending &&
-                o.MercadoPagoPaymentId == null);
+        await using var tx = await _db.Database.BeginTransactionAsync();
 
-        if (order == null)
+        // Verifica si hay stock.
+        try
         {
-            order = new Order
+            foreach (var item in cartItems)
+            {
+                var affectedRows = await _db.Database.ExecuteSqlInterpolatedAsync($@"
+                    UPDATE ""Products""
+                    SET ""ReservedStock"" = ""ReservedStock"" + {item.Quantity}
+                    WHERE ""Id"" = {item.ProductId}
+                      AND (""Stock"" - ""ReservedStock"") >= {item.Quantity};
+                ");
+
+                if (affectedRows == 0)
+                {
+                    await tx.RollbackAsync();
+                    throw new InvalidOperationException(
+                        $"No hay stock disponible suficiente para el producto '{item.Product.Name}'."
+                    );
+                }
+            }
+
+            // Si llega hasta acá es porque hay stock -> comienza la creación de la orden.
+            var order = new Order
             {
                 UserId = userId,
                 TotalAmount = totalAmount,
-                Status = OrderStatuses.Pending,
+                Status = OrderStatuses.AwaitingPayment,
+                ReservationExpiresAt = reservationExpiresAt
             };
 
             _db.Orders.Add(order);
             await _db.SaveChangesAsync();
-        }
-        else
-        {
-            // Si ya existía una orden pendiente, la actualizamos según el carrito actual.
-            order.TotalAmount = totalAmount;
 
-            if (order.Items.Count > 0)
+            var orderItems = cartItems.Select(i => new OrderItem
             {
-                _db.OrderItems.RemoveRange(order.Items);
-                await _db.SaveChangesAsync();
-            }
-        }
-
-        var orderItems = cartItems.Select(i => new OrderItem
-        {
-            OrderId = order.Id,
-            ProductId = i.ProductId,
-            Quantity = i.Quantity,
-            PriceAtPurchase = i.Product.Price
-        }).ToList();
-
-        _db.OrderItems.AddRange(orderItems);
-        await _db.SaveChangesAsync();
-
-        MercadoPagoConfig.AccessToken = _mp.Value.AccessToken;
-
-        var frontendBaseUrl = _mp.Value.FrontendBaseUrl;
-
-        var preferenceRequest = new PreferenceRequest
-        {
-            Items = cartItems.Select(i => new PreferenceItemRequest
-            {
-                Title = i.Product.Name,
+                OrderId = order.Id,
+                ProductId = i.ProductId,
                 Quantity = i.Quantity,
-                UnitPrice = i.Product.Price,
-                CurrencyId = "UYU"
-            }).ToList(),
+                PriceAtPurchase = i.Product.Price
+            }).ToList();
 
-            ExternalReference = order.Id.ToString(),
+            _db.OrderItems.AddRange(orderItems);
+            await _db.SaveChangesAsync();
 
-            BackUrls = new PreferenceBackUrlsRequest
+            MercadoPagoConfig.AccessToken = _mp.Value.AccessToken;
+
+            var frontendBaseUrl = _mp.Value.FrontendBaseUrl;
+
+            var preferenceRequest = new PreferenceRequest
             {
-                Success = $"{frontendBaseUrl}/checkout?status=success&orderId={order.Id}",
-                Failure = $"{frontendBaseUrl}/checkout?status=failure&orderId={order.Id}",
-                Pending = $"{frontendBaseUrl}/checkout?status=pending&orderId={order.Id}",
-            },
+                Items = cartItems.Select(i => new PreferenceItemRequest
+                {
+                    Title = i.Product.Name,
+                    Quantity = i.Quantity,
+                    UnitPrice = i.Product.Price,
+                    CurrencyId = "UYU"
+                }).ToList(),
 
-            AutoReturn = "approved",
-            NotificationUrl = $"{_mp.Value.WebhookBaseUrl}/api/payments/webhook"
-        };
+                ExternalReference = order.Id.ToString(),
 
-        try
-        {
+                BackUrls = new PreferenceBackUrlsRequest
+                {
+                    Success = $"{frontendBaseUrl}/checkout?status=success&orderId={order.Id}",
+                    Failure = $"{frontendBaseUrl}/checkout?status=failure&orderId={order.Id}",
+                    Pending = $"{frontendBaseUrl}/checkout?status=pending&orderId={order.Id}",
+                },
+
+                AutoReturn = "approved",
+                NotificationUrl = $"{_mp.Value.WebhookBaseUrl}/api/payments/webhook"
+            };
+
             var client = new PreferenceClient();
             var preference = await client.CreateAsync(preferenceRequest);
 
             order.MercadoPagoPreferenceId = preference.Id;
             await _db.SaveChangesAsync();
+
+            await tx.CommitAsync();
+
+            _logger.LogInformation(
+                "Reserva creada correctamente. orderId={OrderId}, userId={UserId}, expiresAt={ExpiresAt}",
+                order.Id,
+                userId,
+                reservationExpiresAt
+            );
 
             return new CreatePreferenceResponseDto
             {
@@ -120,8 +138,9 @@ public class PaymentService : IPaymentService
         }
         catch (Exception ex)
         {
-            Console.WriteLine("MP ERROR: " + ex);
-            throw new InvalidOperationException("No se pudo crear la preferencia de pago.");
+            await tx.RollbackAsync();
+            _logger.LogError(ex, "Error al crear preferencia con reserva de stock. userId={UserId}", userId);
+            throw new InvalidOperationException("No se pudo iniciar el checkout.");
         }
     }
 
@@ -132,6 +151,12 @@ public class PaymentService : IPaymentService
         if (type != "payment" || string.IsNullOrWhiteSpace(paymentIdStr))
             return;
 
+        if (!long.TryParse(paymentIdStr, out var parsedPaymentId))
+        {
+            _logger.LogWarning("Webhook ignorado: payment id inválido. dataId={DataId}", paymentIdStr);
+            return;
+        }
+
         MercadoPagoConfig.AccessToken = _mp.Value.AccessToken;
 
         var paymentClient = new PaymentClient();
@@ -139,73 +164,200 @@ public class PaymentService : IPaymentService
 
         try
         {
-            payment = await paymentClient.GetAsync(long.Parse(paymentIdStr));
+            payment = await paymentClient.GetAsync(parsedPaymentId);
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "Error al consultar el pago en Mercado Pago. paymentId={PaymentId}", parsedPaymentId);
             return;
         }
 
         if (string.IsNullOrWhiteSpace(payment.ExternalReference))
+        {
+            _logger.LogWarning("Pago sin ExternalReference. paymentId={PaymentId}", payment.Id);
             return;
+        }
 
         if (!int.TryParse(payment.ExternalReference, out var orderId))
-            return;
-
-        var order = await _db.Orders
-            .Include(o => o.Items)
-            .FirstOrDefaultAsync(o => o.Id == orderId);
-
-        if (order == null)
-            return;
-
-        // Si ya avanzó más allá del pago, no permitir que el webhook lo pise.
-        if (order.Status == OrderStatuses.Paid ||
-            order.Status == OrderStatuses.Preparing ||
-            order.Status == OrderStatuses.Shipped ||
-            order.Status == OrderStatuses.Delivered)
         {
+            _logger.LogWarning(
+                "ExternalReference inválida. paymentId={PaymentId}, externalReference={ExternalReference}",
+                payment.Id,
+                payment.ExternalReference
+            );
             return;
         }
 
-        var status = payment.Status;
+        await using var tx = await _db.Database.BeginTransactionAsync();
 
-        if (status == "approved")
+        try
         {
-            order.Status = OrderStatuses.Paid;
-            order.MercadoPagoPaymentId = payment.Id;
+            var order = await _db.Orders
+                .Include(o => o.Items)
+                .FirstOrDefaultAsync(o => o.Id == orderId);
 
-            var cartItems = await _db.CartItems
-                .Where(c => c.UserId == order.UserId)
-                .ToListAsync();
-
-            _db.CartItems.RemoveRange(cartItems);
-
-            foreach (var item in order.Items)
+            if (order == null)
             {
-                var product = await _db.Products.FindAsync(item.ProductId);
-                if (product == null) continue;
-
-                if (product.Stock >= item.Quantity)
-                {
-                    product.Stock -= item.Quantity;
-                    product.TotalSold += item.Quantity;
-                }
+                await tx.RollbackAsync();
+                _logger.LogWarning("Orden no encontrada para webhook. orderId={OrderId}, paymentId={PaymentId}", orderId, payment.Id);
+                return;
             }
 
-            await _db.SaveChangesAsync();
+            if (order.MercadoPagoPaymentId == payment.Id)
+            {
+                await tx.CommitAsync();
+                _logger.LogInformation("Webhook repetido ignorado. orderId={OrderId}, paymentId={PaymentId}", order.Id, payment.Id);
+                return;
+            }
+
+            var paymentAlreadyUsed = await _db.Orders
+                .AnyAsync(o => o.Id != order.Id && o.MercadoPagoPaymentId == payment.Id);
+
+            if (paymentAlreadyUsed)
+            {
+                await tx.CommitAsync();
+                _logger.LogWarning("paymentId ya usado en otra orden. orderId={OrderId}, paymentId={PaymentId}", order.Id, payment.Id);
+                return;
+            }
+
+            if (order.Status == OrderStatuses.Paid ||
+                order.Status == OrderStatuses.Preparing ||
+                order.Status == OrderStatuses.Shipped ||
+                order.Status == OrderStatuses.Delivered ||
+                order.Status == OrderStatuses.Cancelled ||
+                order.Status == OrderStatuses.Expired)
+            {
+                await tx.CommitAsync();
+                _logger.LogInformation("Webhook ignorado por estado final. orderId={OrderId}, status={Status}", order.Id, order.Status);
+                return;
+            }
+
+            var paymentStatus = payment.Status;
+
+            if (paymentStatus == "approved")
+            {
+                if (payment.TransactionAmount != order.TotalAmount)
+                {
+                    order.Status = OrderStatuses.Cancelled;
+                    order.MercadoPagoPaymentId = payment.Id;
+                    await _db.SaveChangesAsync();
+                    await tx.CommitAsync();
+
+                    _logger.LogWarning(
+                        "Monto inválido. orderId={OrderId}, paymentId={PaymentId}, expected={Expected}, paid={Paid}",
+                        order.Id,
+                        payment.Id,
+                        order.TotalAmount,
+                        payment.TransactionAmount
+                    );
+                    return;
+                }
+
+                if (order.ReservationExpiresAt.HasValue && order.ReservationExpiresAt.Value < DateTime.UtcNow)
+                {
+                    order.Status = OrderStatuses.Expired;
+                    order.MercadoPagoPaymentId = payment.Id;
+                    await _db.SaveChangesAsync();
+                    await tx.CommitAsync();
+
+                    _logger.LogWarning(
+                        "Pago aprobado pero la reserva ya había expirado. orderId={OrderId}, paymentId={PaymentId}",
+                        order.Id,
+                        payment.Id
+                    );
+                    return;
+                }
+
+                foreach (var item in order.Items)
+                {
+                    var affectedRows = await _db.Database.ExecuteSqlInterpolatedAsync($@"
+                        UPDATE ""Products""
+                        SET ""ReservedStock"" = ""ReservedStock"" - {item.Quantity},
+                            ""TotalSold"" = ""TotalSold"" + {item.Quantity}
+                        WHERE ""Id"" = {item.ProductId}
+                          AND ""ReservedStock"" >= {item.Quantity};
+                    ");
+
+                    if (affectedRows == 0)
+                    {
+                        await tx.RollbackAsync();
+                        _logger.LogError(
+                            "No se pudo confirmar la reserva como venta. orderId={OrderId}, productId={ProductId}",
+                            order.Id,
+                            item.ProductId
+                        );
+                        return;
+                    }
+                }
+
+                order.Status = OrderStatuses.Paid;
+                order.MercadoPagoPaymentId = payment.Id;
+                order.ReservationExpiresAt = null;
+
+                var cartItems = await _db.CartItems
+                    .Where(c => c.UserId == order.UserId)
+                    .ToListAsync();
+
+                _db.CartItems.RemoveRange(cartItems);
+
+                await _db.SaveChangesAsync();
+                await tx.CommitAsync();
+
+                _logger.LogInformation(
+                    "Pago confirmado y reserva convertida en venta. orderId={OrderId}, paymentId={PaymentId}",
+                    order.Id,
+                    payment.Id
+                );
+
+                return;
+            }
+
+            if (paymentStatus == "rejected" || paymentStatus == "cancelled")
+            {
+                foreach (var item in order.Items)
+                {
+                    await _db.Database.ExecuteSqlInterpolatedAsync($@"
+                        UPDATE ""Products""
+                        SET ""ReservedStock"" = ""ReservedStock"" - {item.Quantity}
+                        WHERE ""Id"" = {item.ProductId}
+                          AND ""ReservedStock"" >= {item.Quantity};
+                    ");
+                }
+
+                order.Status = OrderStatuses.Cancelled;
+                order.MercadoPagoPaymentId = payment.Id;
+                order.ReservationExpiresAt = null;
+
+                await _db.SaveChangesAsync();
+                await tx.CommitAsync();
+
+                _logger.LogInformation(
+                    "Pago cancelado/rechazado y reserva liberada. orderId={OrderId}, paymentId={PaymentId}",
+                    order.Id,
+                    payment.Id
+                );
+
+                return;
+            }
+
+            await tx.CommitAsync();
+            _logger.LogInformation(
+                "Webhook recibido con estado intermedio. orderId={OrderId}, paymentId={PaymentId}, paymentStatus={PaymentStatus}",
+                order.Id,
+                payment.Id,
+                paymentStatus
+            );
         }
-        else if (status == "rejected" || status == "cancelled")
+        catch (DbUpdateException ex)
         {
-            order.Status = OrderStatuses.Cancelled;
-            order.MercadoPagoPaymentId = payment.Id;
-            await _db.SaveChangesAsync();
+            await tx.RollbackAsync();
+            _logger.LogError(ex, "DbUpdateException al procesar webhook. paymentId={PaymentId}", parsedPaymentId);
         }
-        else
+        catch (Exception ex)
         {
-            order.Status = OrderStatuses.Pending;
-            order.MercadoPagoPaymentId = payment.Id;
-            await _db.SaveChangesAsync();
+            await tx.RollbackAsync();
+            _logger.LogError(ex, "Error inesperado al procesar webhook. paymentId={PaymentId}", parsedPaymentId);
+            throw;
         }
     }
 

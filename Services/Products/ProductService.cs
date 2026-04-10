@@ -128,7 +128,7 @@ public class ProductService : IProductService
             Name = p.Name,
             Description = p.Description,
             Price = p.Price,
-            Stock = p.Stock,
+            Stock = p.Stock - p.ReservedStock,
             ImageUrl = p.ImageUrl,
             CategoryId = p.CategoryId
         }).ToList();
@@ -196,7 +196,7 @@ public class ProductService : IProductService
             Name = p.Name,
             Description = p.Description,
             Price = p.Price,
-            Stock = p.Stock,
+            Stock = p.Stock - p.ReservedStock,
             ImageUrl = p.ImageUrl,
             CategoryId = p.CategoryId
         }).ToList();
@@ -227,7 +227,7 @@ public class ProductService : IProductService
             Name = product.Name,
             Description = product.Description,
             Price = product.Price,
-            Stock = product.Stock,
+            Stock = product.Stock - product.ReservedStock,
             ImageUrl = product.ImageUrl,
             CategoryId = product.CategoryId
         };
@@ -237,7 +237,6 @@ public class ProductService : IProductService
 
         _cache.Set(cacheKey, result, cacheOptions);
         return result;
-
     }
 
     // CREATE 
@@ -363,7 +362,8 @@ public class ProductService : IProductService
             Name = p.Name,
             Description = p.Description,
             Price = p.Price,
-            Stock = p.Stock,
+            Stock = p.Stock - p.ReservedStock,
+            ReservedStock = p.ReservedStock,
             TotalSold = p.TotalSold,
             ImageUrl = p.ImageUrl,
             CategoryId = p.CategoryId
