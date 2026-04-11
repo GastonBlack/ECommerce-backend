@@ -60,5 +60,10 @@ public class AppDbContext : DbContext
         // Optimiza detección de reservas vencidas.
         modelBuilder.Entity<Order>()
             .HasIndex(o => o.ReservationExpiresAt);
+
+        // Evita usuarios duplicados con el mismo email.
+        modelBuilder.Entity<User>()
+            .HasIndex(u => u.Email)
+            .IsUnique();
     }
 }
