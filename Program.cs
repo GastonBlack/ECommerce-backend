@@ -48,15 +48,20 @@ var keyBytes = Encoding.UTF8.GetBytes(jwtSettings.Key);
 // =====================================
 // CORS
 // =====================================
+var frontendOrigin = builder.Configuration["CORS_ALLOWED_ORIGIN"];
+if (string.IsNullOrWhiteSpace(frontendOrigin))
+{
+    frontendOrigin = "http://localhost:3000";
+}
+
+frontendOrigin = frontendOrigin.Trim().TrimEnd('/');
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
         policy
-            .WithOrigins(
-                "http://localhost:3000",
-                "https://ecommerce-git-main-gastonreds-projects.vercel.app"
-            )
+            .WithOrigins(frontendOrigin)
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials();
